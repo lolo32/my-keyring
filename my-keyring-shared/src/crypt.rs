@@ -1,3 +1,4 @@
+use crate::errors::MyKeyringError;
 use c2_chacha::{
     stream_cipher::{NewStreamCipher, SyncStreamCipher},
     XChaCha20,
@@ -5,7 +6,7 @@ use c2_chacha::{
 use hmac::{Hmac, Mac, NewMac};
 use rand_core::{OsRng, RngCore};
 use sha2::Sha512;
-use x448::{PublicKey, SharedSecret};
+use x448::SharedSecret;
 
 pub struct CryptedMessage {
     pub salt: Salt,
@@ -13,10 +14,15 @@ pub struct CryptedMessage {
     pub hmac: Vec<u8>,
 }
 
-type Salt = [u8; 16];
-type Key = [u8; 32];
-type Iv = [u8; 24];
-type Derived = [u8; 88];
+pub const SALT_LENGTH: usize = 16;
+pub const KEY_LENGTH: usize = 32;
+pub const IV_LENGTH: usize = 24;
+pub const DERIVED_LENGTH: usize = KEY_LENGTH * 2 + IV_LENGTH;
+
+type Salt = [u8; SALT_LENGTH];
+type Key = [u8; KEY_LENGTH];
+type Iv = [u8; IV_LENGTH];
+type Derived = [u8; DERIVED_LENGTH];
 
 pub fn crypt(shared: SharedSecret, data: &[u8], iterations: u32) -> CryptedMessage {
     let (salt, keys) = derive_keys(shared.as_bytes(), None, iterations);
@@ -48,17 +54,16 @@ pub fn decrypt(
     shared: SharedSecret,
     mut encrypted: CryptedMessage,
     iterations: u32,
-) -> Result<Vec<u8>, ()> {
+) -> crate::Result<Vec<u8>> {
     let (_salt, keys) = derive_keys(shared.as_bytes(), Some(encrypted.salt), iterations);
     let (key_chacha, iv_chacha, key_hmac) = split_keys(&keys);
 
-    // Check HMAC
+    // Initialise HMAC
     let mut mac = <Hmac<Sha512>>::new_varkey(&key_hmac).expect("HMAC");
     mac.update(&encrypted.data);
-    // result of the HMAC
-    if mac.verify(&encrypted.hmac).is_err() {
-        return Err(());
-    }
+    // Check the HMAC
+    mac.verify(&encrypted.hmac)
+        .map_err(|_| MyKeyringError::IncorrectHmac)?;
 
     // Create cipher instance
     let mut cipher = XChaCha20::new_var(&key_chacha, &iv_chacha).expect("xchacha20");
@@ -69,26 +74,29 @@ pub fn decrypt(
 }
 
 fn split_keys(keys: &[u8]) -> (Key, Iv, Key) {
-    let mut key_1 = [0; 32];
-    key_1.copy_from_slice(&keys[..32]);
+    let mut boundary = (0, KEY_LENGTH);
+    let mut key_1 = [0; KEY_LENGTH];
+    key_1.copy_from_slice(&keys[(boundary.0)..(boundary.1)]);
 
-    let mut iv = [0; 24];
-    iv.copy_from_slice(&keys[32..56]);
+    boundary = (boundary.1, boundary.1 + IV_LENGTH);
+    let mut iv = [0; IV_LENGTH];
+    iv.copy_from_slice(&keys[(boundary.0)..(boundary.1)]);
 
-    let mut key_2 = [0; 32];
-    key_2.copy_from_slice(&keys[56..88]);
+    boundary = (boundary.1, boundary.1 + KEY_LENGTH);
+    let mut key_2 = [0; KEY_LENGTH];
+    key_2.copy_from_slice(&keys[(boundary.0)..(boundary.1)]);
 
     (key_1, iv, key_2)
 }
 
 fn derive_keys(shared: &[u8], nonce: Option<Salt>, iterations: u32) -> (Salt, Derived) {
-    let mut hex = [0; 88];
+    let mut hex = [0; DERIVED_LENGTH];
     // Generate a salt if none
     let nonce = match nonce {
         Some(nonce) => nonce,
         None => {
             // Compute a random salt
-            let mut nonce = [0; 16];
+            let mut nonce = [0; SALT_LENGTH];
             OsRng::fill_bytes(&mut OsRng, &mut nonce[..]);
             nonce
         }
@@ -104,6 +112,8 @@ mod tests {
     use x448::{PublicKey, Secret};
 
     use super::*;
+
+    const ITERATIONS: u32 = 50_000;
 
     #[test]
     fn crypt_then_decrypt() {
@@ -122,10 +132,10 @@ mod tests {
 
         let clear_ref = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec et ultricies augue. Etiam ultrices massa diam, id laoreet neque lobortis.";
 
-        let encrypted = crypt(shared_1, clear_ref.as_slice(), 50_000);
-        let clear = decrypt(shared_2, encrypted, 50_000);
+        let encrypted = crypt(shared_1, &clear_ref[..], ITERATIONS);
+        let clear = decrypt(shared_2, encrypted, ITERATIONS);
         assert!(clear.is_ok());
-        assert_eq!(clear_ref.as_slice(), &clear.unwrap());
+        assert_eq!(&clear_ref[..], &clear.unwrap());
     }
 
     #[test]
@@ -146,8 +156,8 @@ mod tests {
 
         let clear_ref = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec et ultricies augue. Etiam ultrices massa diam, id laoreet neque lobortis.";
 
-        let encrypted = crypt(shared_1, clear_ref.as_slice(), 50_000);
-        let clear = decrypt(shared_2, encrypted, 50_000);
+        let encrypted = crypt(shared_1, &clear_ref[..], ITERATIONS);
+        let clear = decrypt(shared_2, encrypted, ITERATIONS);
         assert!(clear.is_err());
     }
 }

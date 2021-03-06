@@ -1,4 +1,4 @@
-#![feature(array_methods)]
+use crate::errors::MyKeyringError;
 
 #[deny(
     clippy::absurd_extreme_comparisons,
@@ -76,10 +76,13 @@
 )]
 mod authentication;
 mod crypt;
+mod errors;
 mod keys;
 mod note;
 mod tag;
 mod totp;
+
+pub type Result<T> = core::result::Result<T, MyKeyringError>;
 
 #[cfg(test)]
 mod tests {
