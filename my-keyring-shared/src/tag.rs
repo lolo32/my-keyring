@@ -43,7 +43,7 @@ impl TagPool {
     }
 
     pub fn get_tag_id(&self, name: &str) -> Option<Ulid> {
-        for tag in self.tags {
+        for tag in &self.tags {
             if tag.get_name() == name {
                 return Some(tag.get_id());
             }
@@ -53,13 +53,14 @@ impl TagPool {
 }
 
 pub trait Tags {
+    fn tags(&mut self) -> &mut Vec<Ulid>;
+
     fn add_tag(&mut self, tag_id: Ulid) {
         self.del_tag(tag_id);
-        self.tags.push(tag_id);
-        self.tags.sort_by(|a, b| a.get_name().cmp(b.get_name()));
+        self.tags().push(tag_id);
     }
 
     fn del_tag(&mut self, tag_id: Ulid) {
-        self.tags.retain(|t| t != tag_id);
+        self.tags().retain(|t| t != &tag_id);
     }
 }

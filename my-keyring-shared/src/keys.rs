@@ -32,12 +32,40 @@ impl KeyRing {
         }
     }
 
-    pub fn get_ephemeral_key(&self, public_key: PublicKey) -> (PublicKey, Option<SharedSecret>) {
+    pub fn shared_with_ephemeral(&self, public_key: PublicKey) -> (PublicKey, SharedSecret) {
         let ephemeral_secret = Secret::new(&mut OsRng);
         let ephemeral_public_key = PublicKey::from(&ephemeral_secret);
         (
             ephemeral_public_key,
-            ephemeral_secret.as_diffie_hellman(&public_key),
+            ephemeral_secret
+                .to_diffie_hellman(&public_key)
+                .expect("shared secret"),
         )
+    }
+
+    pub fn shared_from_ephemeral(&self, public_key: PublicKey) -> SharedSecret {
+        self.my_key
+            .as_diffie_hellman(&public_key)
+            .expect("shared secret")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compute_ephemeral() {
+        let secret = Secret::new(&mut OsRng);
+        let public_key = PublicKey::from(&secret);
+
+        // Ephemeral
+        let keyring = KeyRing::new(secret, Default::default());
+        let (public_ephemeral, shared_ephemeral) = keyring.shared_with_ephemeral(public_key);
+
+        // From ephemeral public key
+        let shared_keyring = keyring.shared_from_ephemeral(public_ephemeral);
+
+        assert_eq!(shared_ephemeral.as_bytes(), shared_keyring.as_bytes());
     }
 }

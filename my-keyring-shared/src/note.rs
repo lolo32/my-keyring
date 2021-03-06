@@ -1,11 +1,12 @@
 use ulid::Ulid;
 
-use crate::tag::{Tag, Tags};
+use crate::tag::Tags;
 
+#[derive(Debug)]
 pub struct Note {
     id: Ulid,
     message: String,
-    tags: Vec<Tag>,
+    tags: Vec<Ulid>,
 }
 
 impl Note {
@@ -18,4 +19,8 @@ impl Note {
     }
 }
 
-impl Tags for Note {}
+impl Tags for Note {
+    fn tags(&mut self) -> &mut Vec<Ulid> {
+        &mut self.tags
+    }
+}

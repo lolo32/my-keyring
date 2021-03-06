@@ -1,8 +1,9 @@
 use fnv::FnvHashMap;
 use ulid::Ulid;
 
-use crate::tag::{Tag, Tags};
+use crate::tag::Tags;
 
+#[derive(Debug)]
 pub struct Authentication {
     id: Ulid,
     name: String,
@@ -27,4 +28,8 @@ impl Authentication {
     }
 }
 
-impl Tags for Authentication {}
+impl Tags for Authentication {
+    fn tags(&mut self) -> &mut Vec<Ulid> {
+        &mut self.tags
+    }
+}
