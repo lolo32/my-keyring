@@ -5,7 +5,7 @@ use c2_chacha::{
 use hmac::{Hmac, Mac, NewMac};
 use rand_core::{OsRng, RngCore};
 use sha2::Sha512;
-use x448::SharedSecret;
+use x448::{PublicKey, SharedSecret};
 
 pub struct CryptedMessage {
     pub salt: Salt,
@@ -102,8 +102,6 @@ fn derive_keys(shared: &[u8], nonce: Option<Salt>, iterations: u32) -> (Salt, De
 #[cfg(test)]
 mod tests {
     use x448::{PublicKey, Secret};
-
-    use crate::keys::KeyRing;
 
     use super::*;
 

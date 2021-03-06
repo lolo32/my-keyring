@@ -1,5 +1,5 @@
 use fnv::FnvHashMap;
-use rand_core::OsRng;
+use rand_core::{OsRng, RngCore};
 use ulid::Ulid;
 use x448::{PublicKey, Secret, SharedSecret};
 
