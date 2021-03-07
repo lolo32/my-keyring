@@ -15,8 +15,6 @@
     clippy::enum_clike_unportable_variant,
     clippy::eq_op,
     clippy::erasing_op,
-    clippy::find_map,
-    clippy::float_cmp,
     clippy::float_equality_without_abs,
     clippy::fn_address_comparisons,
     clippy::for_loops_over_fallibles,
@@ -76,6 +74,6 @@
 mod tests {
     #[test]
     fn it_works() {
-        assert_eq!(2 + 2, 4);
+        assert_ne!(2, 4);
     }
 }

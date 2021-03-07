@@ -17,7 +17,6 @@ use crate::errors::MyKeyringError;
     clippy::enum_clike_unportable_variant,
     clippy::eq_op,
     clippy::erasing_op,
-    clippy::find_map,
     clippy::float_cmp,
     clippy::float_equality_without_abs,
     clippy::fn_address_comparisons,
@@ -88,6 +87,6 @@ pub type Result<T> = core::result::Result<T, MyKeyringError>;
 mod tests {
     #[test]
     fn it_works() {
-        assert_eq!(2 + 2, 4);
+        assert_ne!(3, 4);
     }
 }
