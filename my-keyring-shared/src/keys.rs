@@ -58,9 +58,9 @@ impl KeyRing {
     }
 
     /// Generate a `SharedSecret` from the `public_key` and the local `PrivateKey`
-    pub fn shared_from_ephemeral(&self, public_key: PublicKey) -> SharedSecret {
+    pub fn shared_from_ephemeral(&self, public_key: &PublicKey) -> SharedSecret {
         self.my_key
-            .as_diffie_hellman(&public_key)
+            .as_diffie_hellman(public_key)
             .expect("shared secret")
     }
 }
@@ -80,7 +80,7 @@ mod tests {
             alice_keyring.shared_with_ephemeral(&alice_public);
 
         // From ephemeral public key
-        let shared_keyring = alice_keyring.shared_from_ephemeral(public_ephemeral);
+        let shared_keyring = alice_keyring.shared_from_ephemeral(&public_ephemeral);
 
         assert_eq!(shared_ephemeral.as_bytes(), shared_keyring.as_bytes());
     }

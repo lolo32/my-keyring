@@ -158,9 +158,25 @@ mod tests {
     use x448::{PublicKey, Secret};
 
     use super::*;
+    use test::Bencher;
 
     const ITERATIONS: u32 = 100_000;
     const MESSAGE: &[u8] = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec et ultricies augue. Etiam ultrices massa diam, id laoreet neque lobortis.";
+
+    #[bench]
+    fn crypt_(b: &mut Bencher) {
+        b.iter(move || {
+            let secret_1 = Secret::new(&mut OsRng);
+            let public_key_1 = PublicKey::from(&secret_1);
+
+            let secret_2 = Secret::new(&mut OsRng);
+            let public_key_2 = PublicKey::from(&secret_2);
+
+            let shared = secret_1.as_diffie_hellman(&public_key_2).unwrap();
+
+            test::black_box(super::crypt(shared, MESSAGE, ITERATIONS));
+        })
+    }
 
     #[test]
     fn crypt_then_decrypt() -> crate::Result<()> {
