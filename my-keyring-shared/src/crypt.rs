@@ -167,7 +167,6 @@ mod tests {
     fn crypt_(b: &mut Bencher) {
         b.iter(move || {
             let secret_1 = Secret::new(&mut OsRng);
-            let public_key_1 = PublicKey::from(&secret_1);
 
             let secret_2 = Secret::new(&mut OsRng);
             let public_key_2 = PublicKey::from(&secret_2);
