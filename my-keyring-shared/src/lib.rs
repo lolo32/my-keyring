@@ -1,8 +1,6 @@
 #![feature(test)]
 extern crate test;
 
-use crate::errors::MyKeyringError;
-
 #[deny(
     clippy::absurd_extreme_comparisons,
     clippy::almost_swapped,
@@ -76,13 +74,16 @@ use crate::errors::MyKeyringError;
     clippy::wrong_transmute,
     clippy::zst_offset
 )]
+pub use crate::{algo::Algorithm, errors::MyKeyringError};
+
+mod algo;
 mod authentication;
-mod crypt;
+pub mod crypt;
 mod errors;
 mod keys;
 mod note;
 mod tag;
-mod totp;
+pub mod totp;
 
 pub type Result<T> = core::result::Result<T, MyKeyringError>;
 

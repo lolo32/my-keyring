@@ -1,13 +1,29 @@
 use std::time::SystemTime;
 
 use base32::{decode, Alphabet};
-use hmac::{Hmac, Mac, NewMac};
-use sha1::Sha1;
-use sha2::Sha256;
 
+use crate::algo::Algorithm;
 use crate::errors::MyKeyringError;
 
 /// Decode a base32 encoded string, removing padding and optional `-` or `spaces`
+///
+/// # Examples
+///
+/// All these examples return the same result
+/// ```
+/// use my_keyring_shared::totp::decode_base32;
+/// # fn main() -> my_keyring_shared::Result<()> {
+/// // Literally
+/// let literally = decode_base32("JBSWY3DPEB3W64TMMQQQ")?;
+/// // With padding
+/// let padding = decode_base32("JBSWY3DPEB3W64TMMQQQ==")?;
+/// // With extra characters for readability
+/// let extra_chars = decode_base32("JBSW Y3DP-EB3W 64TM-MQQQ")?;
+///
+/// assert_eq!(extra_chars, b"Hello world!");
+/// # Ok(())
+/// # }
+/// ```
 #[inline]
 pub fn decode_base32(input: &str) -> crate::Result<Vec<u8>> {
     let encoded = input
@@ -18,41 +34,29 @@ pub fn decode_base32(input: &str) -> crate::Result<Vec<u8>> {
     decode(Alphabet::RFC4648 { padding: false }, &encoded).ok_or(MyKeyringError::InvalidBase32)
 }
 
-#[derive(Debug, PartialEq, Copy, Clone)]
-pub enum Algorithm {
-    Sha1,
-    Sha256,
-}
-
-impl Algorithm {
-    #[must_use]
-    pub fn hmac(self, key: &[u8], data: &[u8]) -> Vec<u8> {
-        macro_rules! hmac_hash {
-            ($hash:ty) => {{
-                // Create the HMAC
-                let mut mac = <Hmac<$hash>>::new_varkey(key).expect("Hmac engine");
-                // Do the hashing
-                mac.update(data);
-                // Return the result
-                mac.finalize().into_bytes().to_vec()
-            }};
-        }
-        match self {
-            Self::Sha1 => hmac_hash!(Sha1),
-            Self::Sha256 => hmac_hash!(Sha256),
-        }
-    }
-}
-
+/// Generate a Totp, based either on the current timestamp, or arbitrary value
+///
+/// # Examples
+///
+/// ```
+/// use my_keyring_shared::{Algorithm, totp::Totp};
+/// let totp = Totp::new(b"12345678901234567890", 6, 30, Algorithm::Sha1);
+///
+/// // Current timestamp
+/// println!("{}", totp.totp());
+/// // Arbitral timestamp, 1234567890 here
+/// println!("{}", totp.totp_from_timestamp(1_234_567_890));
+/// ```
 #[derive(Debug)]
 pub struct Totp {
-    // Secret to use
+    /// Secret to use
     secret: Vec<u8>,
-    // Number of digits, 6 (default) or 8
+    /// Number of digits, 6 (default) or 8
     digits: u8,
-    // Period of validity of the token (30 secs by default)
+    /// Period of validity of the token (30 secs by default)
     period: u32,
-    algoritm: Algorithm,
+    /// Algorithm to use during Totp generation
+    algorithm: Algorithm,
 }
 
 impl Totp {
@@ -60,26 +64,51 @@ impl Totp {
     ///
     /// # Parameters with defaults valued
     ///
-    /// The `secret` is the
+    /// The `secret` is indicated from the website,
+    /// `digits` is the desired length, defaulting to 6,
+    /// `period` is the window timestamp validity, defaulting to 30 seconds,
+    /// `algorithm` is the algorithm used to generate, defaulting to Sha-1.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use my_keyring_shared::{Algorithm, totp::Totp};
+    /// # fn main() -> my_keyring_shared::Result<()> {
+    /// // Specifying only the secret
+    /// let totp = Totp::new(b"12345678901234567890", None, None, None);
+    ///
+    /// // Specifying the other parameters
+    /// let totp = Totp::new(b"12345678901234567890", 8, Some(30), Some(Algorithm::Sha1));
+    ///
+    /// # println!("{}", totp.totp());
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn new(
         secret: &[u8],
         digits: impl Into<Option<u8>>,
         period: impl Into<Option<u32>>,
         algorithm: impl Into<Option<Algorithm>>,
     ) -> Self {
-        let digits = digits.into();
-        let period = period.into();
-        let algorithm = algorithm.into();
         Self {
-            secret: secret.to_vec(),
-            digits: digits.unwrap_or(6).max(1),
-            period: period.unwrap_or(30).max(1),
-            algoritm: algorithm.unwrap_or(Algorithm::Sha1),
+            secret: secret.to_owned(),
+            digits: digits.into().unwrap_or(6).max(1),
+            period: period.into().unwrap_or(30).max(1),
+            algorithm: algorithm.into().unwrap_or(Algorithm::Sha1),
         }
     }
 
     /// Retrieve the Totp value based on current timestamp
-    #[must_use]
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use my_keyring_shared::totp::Totp;
+    /// let totp = Totp::new(b"12345678901234567890", None, None, None);
+    ///
+    /// println!("{}", totp.totp());
+    /// ```
+    #[inline]
     pub fn totp(&self) -> String {
         let timestamp = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
@@ -89,12 +118,21 @@ impl Totp {
     }
 
     /// Retrieve the Totp, based on the `timestamp` parameter value
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use my_keyring_shared::totp::Totp;
+    /// let totp = Totp::new(b"12345678901234567890", None, None, None);
+    ///
+    /// println!("{}", totp.totp_from_timestamp(1_234_567_890));
+    /// ```
     pub fn totp_from_timestamp(&self, timestamp: u64) -> String {
         // Generate the counter based on the period window
         let counter = timestamp / u64::from(self.period);
 
         // Compute the Hmac
-        let digest = self.algoritm.hmac(&self.secret, &counter.to_be_bytes());
+        let digest = self.algorithm.hmac(&self.secret, &counter.to_be_bytes());
 
         // Truncate
         let offset = (digest.last().expect("last array member") & 0xf) as usize;
