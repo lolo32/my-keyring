@@ -40,7 +40,7 @@ pub fn decode_base32(input: &str) -> crate::Result<Vec<u8>> {
 ///
 /// ```
 /// use my_keyring_shared::{Algorithm, totp::Totp};
-/// let totp = Totp::new(b"12345678901234567890", 6, 30, Algorithm::Sha1);
+/// let totp = Totp::new("JBSWY3DPEB3W64TMMQQQ", 6, 30, Algorithm::Sha1);
 ///
 /// // Current timestamp
 /// println!("{}", totp.totp());
@@ -50,7 +50,7 @@ pub fn decode_base32(input: &str) -> crate::Result<Vec<u8>> {
 #[derive(Debug)]
 pub struct Totp {
     /// Secret to use
-    secret: Vec<u8>,
+    secret: String,
     /// Number of digits, 6 (default) or 8
     digits: u8,
     /// Period of validity of the token (30 secs by default)
@@ -62,7 +62,7 @@ pub struct Totp {
 impl Totp {
     /// Initialise a new Totp
     ///
-    /// # Parameters with defaults valued
+    /// # Defaults valued
     ///
     /// The `secret` is indicated from the website,
     /// `digits` is the desired length, defaulting to 6,
@@ -75,27 +75,35 @@ impl Totp {
     /// use my_keyring_shared::{Algorithm, totp::Totp};
     /// # fn main() -> my_keyring_shared::Result<()> {
     /// // Specifying only the secret
-    /// let totp = Totp::new(b"12345678901234567890", None, None, None);
+    /// let totp = Totp::new("JBSWY3DPEB3W64TMMQQQ", None, None, None);
     ///
     /// // Specifying the other parameters
-    /// let totp = Totp::new(b"12345678901234567890", 8, Some(30), Some(Algorithm::Sha1));
+    /// let totp = Totp::new("JBSWY3DPEB3W64TMMQQQ", 8, Some(30), Some(Algorithm::Sha1));
     ///
     /// # println!("{}", totp.totp());
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Return [`MyKeyringError::InvalidBase32`] error if the provided `secret` is not
+    /// a valid base32 encoded string
     pub fn new(
-        secret: &[u8],
+        secret: &str,
         digits: impl Into<Option<u8>>,
         period: impl Into<Option<u32>>,
         algorithm: impl Into<Option<Algorithm>>,
-    ) -> Self {
-        Self {
+    ) -> crate::Result<Self> {
+        // Do this to check base32 string
+        let _ = decode_base32(secret)?;
+
+        Ok(Self {
             secret: secret.to_owned(),
             digits: digits.into().unwrap_or(6).max(1),
             period: period.into().unwrap_or(30).max(1),
             algorithm: algorithm.into().unwrap_or(Algorithm::Sha1),
-        }
+        })
     }
 
     /// Retrieve the Totp value based on current timestamp
@@ -104,9 +112,10 @@ impl Totp {
     ///
     /// ```
     /// use my_keyring_shared::totp::Totp;
-    /// let totp = Totp::new(b"12345678901234567890", None, None, None);
+    /// let totp = Totp::new("JBSWY3DPEB3W64TMMQQQ", None, None, None);
     ///
     /// println!("{}", totp.totp());
+    /// // Will print something like: 037194
     /// ```
     #[inline]
     pub fn totp(&self) -> String {
@@ -123,7 +132,7 @@ impl Totp {
     ///
     /// ```
     /// use my_keyring_shared::totp::Totp;
-    /// let totp = Totp::new(b"12345678901234567890", None, None, None);
+    /// let totp = Totp::new("JFIFCUSTKRKVMV2IJFIFCUSTKRKVMV2I", None, None, None);
     ///
     /// println!("{}", totp.totp_from_timestamp(1_234_567_890));
     /// ```
@@ -132,7 +141,10 @@ impl Totp {
         let counter = timestamp / u64::from(self.period);
 
         // Compute the Hmac
-        let digest = self.algorithm.hmac(&self.secret, &counter.to_be_bytes());
+        let digest = self.algorithm.hmac(
+            &decode_base32(&self.secret).expect("Base32 decoded string"),
+            &counter.to_be_bytes(),
+        );
 
         // Truncate
         let offset = (digest.last().expect("last array member") & 0xf) as usize;
@@ -163,56 +175,78 @@ mod tests {
         assert_eq!(decode_base32("JBSW Y3DP-EB3W 64TM-MQQQ").unwrap(), s);
     }
 
+    #[test]
+    fn base32_rfc4648_test_vector_decoding() {
+        // Base32
+        assert_eq!(decode_base32("MY======").unwrap(), b"f");
+        assert_eq!(decode_base32("MZXQ====").unwrap(), b"fo");
+        assert_eq!(decode_base32("MZXW6===").unwrap(), b"foo");
+        assert_eq!(decode_base32("MZXW6YQ=").unwrap(), b"foob");
+        assert_eq!(decode_base32("MZXW6YTB").unwrap(), b"fooba");
+        assert_eq!(decode_base32("MZXW6YTBOI").unwrap(), b"foobar");
+    }
+
     #[bench]
     fn bench_totp_sha1_8chars(b: &mut Bencher) {
-        let seed = b"12345678901234567890";
-        let t = Totp::new(seed, 8, None, None);
+        // 12345678901234567890
+        let seed = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+        let t = Totp::new(seed, 8, None, None).unwrap();
         b.iter(move || t.totp())
     }
 
     #[bench]
     fn bench_totp_sha256_8chars(b: &mut Bencher) {
-        let seed = b"12345678901234567890";
-        let t = Totp::new(seed, 8, None, Algorithm::Sha256);
+        // 12345678901234567890
+        let seed = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+        let t = Totp::new(seed, 8, None, Algorithm::Sha256).unwrap();
         b.iter(move || t.totp())
     }
 
     #[bench]
     fn bench_totp_sha1_6chars(b: &mut Bencher) {
-        let seed = b"12345678901234567890";
-        let t = Totp::new(seed, 6, None, None);
+        // 12345678901234567890
+        let seed = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+        let t = Totp::new(seed, 6, None, None).unwrap();
         b.iter(move || t.totp())
     }
 
     #[test]
-    fn tests_vectors_rfc6238_sha1_8chars() {
-        let seed = b"12345678901234567890";
-        let t = Totp::new(seed, Some(8), None, None);
+    fn tests_vectors_rfc6238_sha1_8chars() -> crate::Result<()> {
+        // 12345678901234567890
+        let seed = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+        let t = Totp::new(seed, Some(8), None, None)?;
         assert_eq!(t.totp_from_timestamp(59), "94287082");
         assert_eq!(t.totp_from_timestamp(1_111_111_109), "07081804");
         assert_eq!(t.totp_from_timestamp(1_111_111_111), "14050471");
         assert_eq!(t.totp_from_timestamp(1_234_567_890), "89005924");
         assert_eq!(t.totp_from_timestamp(2_000_000_000), "69279037");
         assert_eq!(t.totp_from_timestamp(20_000_000_000), "65353130");
+
+        Ok(())
     }
 
     #[test]
-    fn tests_vectors_rfc6238_sha256_8chars() {
-        let seed = b"12345678901234567890123456789012";
-        let t = Totp::new(seed, 8, None, Algorithm::Sha256);
+    fn tests_vectors_rfc6238_sha256_8chars() -> crate::Result<()> {
+        // 12345678901234567890123456789012
+        let seed = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA";
+        let t = Totp::new(seed, 8, None, Algorithm::Sha256)?;
         assert_eq!(t.totp_from_timestamp(59), "46119246");
         assert_eq!(t.totp_from_timestamp(1_111_111_109), "68084774");
         assert_eq!(t.totp_from_timestamp(1_111_111_111), "67062674");
         assert_eq!(t.totp_from_timestamp(1_234_567_890), "91819424");
         assert_eq!(t.totp_from_timestamp(2_000_000_000), "90698825");
         assert_eq!(t.totp_from_timestamp(20_000_000_000), "77737706");
+
+        Ok(())
     }
 
     #[test]
-    fn tests_vectors_rfc4226_sha1_6chars() {
+    fn tests_vectors_rfc4226_sha1_6chars() -> crate::Result<()> {
         // These are normally HTOP test vectors, but can be used if `period` is one second
-        let seed = b"12345678901234567890";
-        let t = Totp::new(seed, None, 1, Some(Algorithm::Sha1));
+
+        // 12345678901234567890
+        let seed = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+        let t = Totp::new(seed, None, 1, Some(Algorithm::Sha1))?;
         assert_eq!(t.totp_from_timestamp(0), "755224");
         assert_eq!(t.totp_from_timestamp(1), "287082");
         assert_eq!(t.totp_from_timestamp(2), "359152");
@@ -223,5 +257,7 @@ mod tests {
         assert_eq!(t.totp_from_timestamp(7), "162583");
         assert_eq!(t.totp_from_timestamp(8), "399871");
         assert_eq!(t.totp_from_timestamp(9), "520489");
+
+        Ok(())
     }
 }

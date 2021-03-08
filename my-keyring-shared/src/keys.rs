@@ -1,7 +1,8 @@
 use fnv::FnvHashMap;
 use rand_core::OsRng;
 use ulid::Ulid;
-use x448::{PublicKey, Secret, SharedSecret};
+
+use crate::{PublicKey, Secret, SharedSecret};
 
 /// The `PublicKey` pool holder and keep the `Secret`
 pub struct KeyRing {
@@ -40,28 +41,41 @@ impl KeyRing {
     }
 
     /// Generate a `SharedSecret` based on an ephemeral private key that is not
-    /// used outside of this function.
+    /// used outside of this function
     ///
     /// It returns the associated `PublicKey` that must be used to compute the
     /// `shared_secret` on the other side so it must be send to the other side,
     /// and the `SharedSecret` computed from the `public_key` parameter and the ephemeral
-    /// private key
+    /// private key.
+    ///
+    /// It does some sanity check, and so compute as many ephemeral key as needed
+    /// to obtain a valid `SharedKey`.
     pub fn shared_with_ephemeral(&self, public_key: &PublicKey) -> (PublicKey, SharedSecret) {
-        let ephemeral_secret = Secret::new(&mut OsRng);
-        let ephemeral_public_key = PublicKey::from(&ephemeral_secret);
-        (
-            ephemeral_public_key,
-            ephemeral_secret
-                .to_diffie_hellman(&public_key)
-                .expect("shared secret"),
-        )
+        loop {
+            let (public, shared) = self.gen_ephemeral(public_key);
+            if let Some(shared) = shared {
+                return (public, shared);
+            }
+        }
     }
 
     /// Generate a `SharedSecret` from the `public_key` and the local `PrivateKey`
+    ///
+    /// The `SharedKey` computation is normally always valid here, sanity check already
+    /// done in the [`shared_with_ephemeral`] step.
     pub fn shared_from_ephemeral(&self, public_key: &PublicKey) -> SharedSecret {
         self.my_key
             .as_diffie_hellman(public_key)
             .expect("shared secret")
+    }
+
+    fn gen_ephemeral(&self, public_key: &PublicKey) -> (PublicKey, Option<SharedSecret>) {
+        let ephemeral_secret = Secret::new(&mut OsRng);
+        let ephemeral_public_key = PublicKey::from(&ephemeral_secret);
+        (
+            ephemeral_public_key,
+            ephemeral_secret.to_diffie_hellman(public_key),
+        )
     }
 }
 

@@ -75,6 +75,7 @@ extern crate test;
     clippy::zst_offset
 )]
 pub use crate::{algo::Algorithm, errors::MyKeyringError};
+pub use x448::{PublicKey, Secret, SharedSecret};
 
 mod algo;
 mod authentication;
