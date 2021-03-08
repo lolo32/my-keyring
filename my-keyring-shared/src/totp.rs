@@ -1,11 +1,45 @@
+//! Contains the code to generate TOTP code and decode base32 challenge
+//!
+//! The base32 string decoding will be done internally. Any space or dash or padding
+//! will be ignored during base32 processing
+//!
+//! # Examples
+//!
+//! ## Using current timestamp
+//!
+//! ```
+//! # fn main() -> my_keyring_shared::Result<()> {
+//! use my_keyring_shared::{Algorithm, totp::Totp};
+//! let totp = Totp::new("JBSWY3DPEB3W64TMMQQQ", None, None, None)?;
+//!
+//! println!("{}", totp.totp());
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Manually specifying timstamp
+//!
+//! Arbitrary timestamp, 1234567890 here, so 2009-02-13 at 23:31:30
+//! ```
+//! # fn main() -> my_keyring_shared::Result<()> {
+//! use my_keyring_shared::{Algorithm, totp::Totp};
+//! let totp = Totp::new("JBSWY3DPEB3W64TMMQQQ", None, None, None)?;
+//!
+//! let value = totp.totp_from_timestamp(1_234_567_890);
+//! assert_eq!("757253", value);
+//! # Ok(())
+//! # }
+//! ```
+
 use std::time::SystemTime;
 
 use base32::{decode, Alphabet};
+use serde::{Deserialize, Serialize};
 
 use crate::algo::Algorithm;
 use crate::errors::MyKeyringError;
 
-/// Decode a base32 encoded string, removing padding and optional `-` or `spaces`
+/// Decode a base32 encoded string, removing padding and optional `-` (dash) or `space`
 ///
 /// # Examples
 ///
@@ -39,15 +73,18 @@ pub fn decode_base32(input: &str) -> crate::Result<Vec<u8>> {
 /// # Examples
 ///
 /// ```
+/// # fn main() -> my_keyring_shared::Result<()> {
 /// use my_keyring_shared::{Algorithm, totp::Totp};
-/// let totp = Totp::new("JBSWY3DPEB3W64TMMQQQ", 6, 30, Algorithm::Sha1);
+/// let totp = Totp::new("JBSWY3DPEB3W64TMMQQQ", 6, 30, Algorithm::Sha1)?;
 ///
 /// // Current timestamp
 /// println!("{}", totp.totp());
-/// // Arbitral timestamp, 1234567890 here
+/// // Arbitrary timestamp, 1234567890 here
 /// println!("{}", totp.totp_from_timestamp(1_234_567_890));
+/// # Ok(())
+/// # }
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Totp {
     /// Secret to use
     secret: String,
@@ -62,7 +99,7 @@ pub struct Totp {
 impl Totp {
     /// Initialise a new Totp
     ///
-    /// # Defaults valued
+    /// # Defaults values
     ///
     /// The `secret` is indicated from the website,
     /// `digits` is the desired length, defaulting to 6,
@@ -75,10 +112,10 @@ impl Totp {
     /// use my_keyring_shared::{Algorithm, totp::Totp};
     /// # fn main() -> my_keyring_shared::Result<()> {
     /// // Specifying only the secret
-    /// let totp = Totp::new("JBSWY3DPEB3W64TMMQQQ", None, None, None);
+    /// let totp = Totp::new("JBSWY3DPEB3W64TMMQQQ", None, None, None)?;
     ///
     /// // Specifying the other parameters
-    /// let totp = Totp::new("JBSWY3DPEB3W64TMMQQQ", 8, Some(30), Some(Algorithm::Sha1));
+    /// let totp = Totp::new("JBSWY3DPEB3W64TMMQQQ", 8, Some(30), Some(Algorithm::Sha1))?;
     ///
     /// # println!("{}", totp.totp());
     /// # Ok(())
@@ -111,11 +148,14 @@ impl Totp {
     /// # Examples
     ///
     /// ```
+    /// # fn main() -> my_keyring_shared::Result<()> {
     /// use my_keyring_shared::totp::Totp;
-    /// let totp = Totp::new("JBSWY3DPEB3W64TMMQQQ", None, None, None);
+    /// let totp = Totp::new("JBSWY3DPEB3W64TMMQQQ", None, None, None)?;
     ///
     /// println!("{}", totp.totp());
     /// // Will print something like: 037194
+    /// # Ok(())
+    /// # }
     /// ```
     #[inline]
     pub fn totp(&self) -> String {
@@ -131,10 +171,13 @@ impl Totp {
     /// # Examples
     ///
     /// ```
+    /// # fn main() -> my_keyring_shared::Result<()> {
     /// use my_keyring_shared::totp::Totp;
-    /// let totp = Totp::new("JFIFCUSTKRKVMV2IJFIFCUSTKRKVMV2I", None, None, None);
+    /// let totp = Totp::new("JFIFCUSTKRKVMV2IJFIFCUSTKRKVMV2I", None, None, None)?;
     ///
-    /// println!("{}", totp.totp_from_timestamp(1_234_567_890));
+    /// assert_eq!("850592", totp.totp_from_timestamp(1_234_567_890));
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn totp_from_timestamp(&self, timestamp: u64) -> String {
         // Generate the counter based on the period window

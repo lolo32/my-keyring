@@ -7,4 +7,6 @@ pub enum MyKeyringError {
     IncorrectHmac,
     /// The provided base32's string is invalid
     InvalidBase32,
+    /// The array of byte cannot be deserialized, it seems to be invalid
+    InvalidCryptedMessage,
 }

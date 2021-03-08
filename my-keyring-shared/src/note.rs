@@ -20,6 +20,7 @@ impl Note {
 }
 
 impl Tags for Note {
+    #[inline]
     fn tags(&mut self) -> &mut Vec<Ulid> {
         &mut self.tags
     }

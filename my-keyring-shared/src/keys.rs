@@ -63,12 +63,15 @@ impl KeyRing {
     ///
     /// The `SharedKey` computation is normally always valid here, sanity check already
     /// done in the [`shared_with_ephemeral`] step.
-    pub fn shared_from_ephemeral(&self, public_key: &PublicKey) -> SharedSecret {
+    pub fn shared_from_public(&self, public_key: &PublicKey) -> SharedSecret {
         self.my_key
             .as_diffie_hellman(public_key)
             .expect("shared secret")
     }
 
+    /// Generate an ephemeral private key and it's associated public's, then make
+    /// the diffie hellman exchange with the ephemeral private and the provided
+    /// `public_key`
     fn gen_ephemeral(&self, public_key: &PublicKey) -> (PublicKey, Option<SharedSecret>) {
         let ephemeral_secret = Secret::new(&mut OsRng);
         let ephemeral_public_key = PublicKey::from(&ephemeral_secret);
@@ -94,7 +97,7 @@ mod tests {
             alice_keyring.shared_with_ephemeral(&alice_public);
 
         // From ephemeral public key
-        let shared_keyring = alice_keyring.shared_from_ephemeral(&public_ephemeral);
+        let shared_keyring = alice_keyring.shared_from_public(&public_ephemeral);
 
         assert_eq!(shared_ephemeral.as_bytes(), shared_keyring.as_bytes());
     }

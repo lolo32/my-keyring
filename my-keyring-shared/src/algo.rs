@@ -1,11 +1,12 @@
 use hmac::{Hmac, Mac, NewMac};
+use serde::{Deserialize, Serialize};
 use sha1::Sha1;
 use sha2::{Sha256, Sha512};
 
 use crate::errors::MyKeyringError;
 
 /// Algorithms that can be used to compute a hmac
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub enum Algorithm {
     /// Sha-1 variant
     Sha1,

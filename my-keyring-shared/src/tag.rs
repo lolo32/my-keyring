@@ -55,11 +55,13 @@ impl TagPool {
 pub trait Tags {
     fn tags(&mut self) -> &mut Vec<Ulid>;
 
+    #[inline]
     fn add_tag(&mut self, tag_id: Ulid) {
         self.del_tag(tag_id);
         self.tags().push(tag_id);
     }
 
+    #[inline]
     fn del_tag(&mut self, tag_id: Ulid) {
         self.tags().retain(|t| t != &tag_id);
     }

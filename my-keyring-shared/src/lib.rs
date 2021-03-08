@@ -74,8 +74,9 @@ extern crate test;
     clippy::wrong_transmute,
     clippy::zst_offset
 )]
-pub use crate::{algo::Algorithm, errors::MyKeyringError};
 pub use x448::{PublicKey, Secret, SharedSecret};
+
+pub use crate::{algo::Algorithm, errors::MyKeyringError};
 
 mod algo;
 mod authentication;
@@ -86,6 +87,7 @@ mod note;
 mod tag;
 pub mod totp;
 
+/// Specialized [`core::result::Result`] for this crate
 pub type Result<T> = core::result::Result<T, MyKeyringError>;
 
 #[cfg(test)]

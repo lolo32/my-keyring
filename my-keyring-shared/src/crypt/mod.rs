@@ -1,15 +1,53 @@
-use std::fmt;
+//! Contains functions to encrypt/decrypt a message, based on any shared secret
+//!
+//! # Examples
+//!
+//! ```
+//! # fn main() -> my_keyring_shared::Result<()> {
+//! # use x448::{Secret, PublicKey};
+//! # use rand_core::OsRng;
+//! # let secret_1 = Secret::new(&mut OsRng);
+//! # let secret_2 = Secret::new(&mut OsRng);
+//! # let public_key_2 = PublicKey::from(&secret_2);
+//! # let shared_secret = secret_1.as_diffie_hellman(&public_key_2).unwrap();
+//! use my_keyring_shared::crypt::{crypt, decrypt, CryptedMessage};
+//! use std::convert::TryFrom;
+//!
+//! let text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec et ultricies augue.";
+//!
+//! // Encrypt data
+//! let encrypted_data = crypt(shared_secret, text.as_bytes(), 20_000);
+//!
+//! // Serialize the data to send over a network link or store it
+//! let array_data: Vec<u8> = encrypted_data.into();
+//!
+//! // Deserialize the data after download/storage read
+//! let encrypted_data = CryptedMessage::try_from(array_data)?;
+//!
+//! // Decrypt the data, can return an error if shared_secret and/or iterations is invalid
+//! # let shared_secret = secret_1.as_diffie_hellman(&public_key_2).unwrap();
+//! let data = decrypt(shared_secret, encrypted_data, 20_000)?;
+//! let data_text = String::from_utf8(data).expect("valid utf8 string");
+//!
+//! assert_eq!(text, data_text);
+//! # Ok(())
+//! # }
+//! ```
 
 use c2_chacha::{
     stream_cipher::{NewStreamCipher, SyncStreamCipher},
     XChaCha20,
 };
+use hmac::Hmac;
 use rand_core::{OsRng, RngCore};
+use sha2::Sha512;
 use x448::SharedSecret;
 
 use crate::algo::Algorithm;
-use hmac::Hmac;
-use sha2::Sha512;
+
+pub use self::message::CryptedMessage;
+
+mod message;
 
 /// HMAC array length
 pub const HMAC_LENGTH: usize = 64;
@@ -21,22 +59,6 @@ pub const KEY_LENGTH: usize = 32;
 pub const IV_LENGTH: usize = 24;
 /// Length of the derived PBKDF2 used
 const DERIVED_LENGTH: usize = KEY_LENGTH * 2 + IV_LENGTH;
-
-/// Represent a message encrypted, and the information needed to decrypt it
-pub struct CryptedMessage {
-    /// Public salt to derive passwords/iv for encryption/hmac
-    pub salt: Salt,
-    /// Data encrypted
-    pub data: Vec<u8>,
-    /// Hmac of the `data`
-    pub hmac: [u8; HMAC_LENGTH],
-}
-
-impl fmt::Debug for CryptedMessage {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("CryptedMessage { .. }")
-    }
-}
 
 /// Represent a salt for PBKDF2 derivation
 pub type Salt = [u8; SALT_LENGTH];
@@ -53,11 +75,14 @@ type Derived = [u8; DERIVED_LENGTH];
 /// # Examples
 ///
 /// ```
-/// # use x448::{Secret, PublicKey};
-/// # let secret_1 = Secret::from_bytes(&[4, 36, 208, 209, 253, 39, 109, 9, 136, 133, 28, 92, 92, 85, 39, 187, 162, 244, 121, 149, 65, 178, 13, 45, 102, 116, 29, 119, 43, 134, 133, 48, 12, 113, 211, 217, 171, 72, 181, 1, 247, 71, 235, 9, 227, 186, 34, 54, 82, 153, 32, 57, 204, 178, 227, 212]).unwrap();
-/// # let secret_2 = Secret::from_bytes(&[60, 126, 173, 166, 53, 200, 49, 76, 45, 1, 94, 173, 141, 43, 216, 220, 143, 128, 6, 191, 211, 195, 126, 33, 171, 41, 12, 66, 89, 143, 53, 124, 29, 71, 56, 98, 71, 167, 30, 144, 243, 19, 18, 179, 44, 103, 126, 149, 62, 246, 207, 141, 112, 194, 188, 144]).unwrap();
-/// # let public_key_2 = PublicKey::from(&secret_2);
-/// # let shared_secret = secret_1.as_diffie_hellman(&public_key_2).unwrap();
+/// # let shared_secret = {
+/// #     use x448::{Secret, PublicKey};
+/// #     use rand_core::OsRng;
+/// #     let secret_1 = Secret::new(&mut OsRng);
+/// #     let secret_2 = Secret::new(&mut OsRng);
+/// #     let public_key_2 = PublicKey::from(&secret_2);
+/// #     secret_1.as_diffie_hellman(&public_key_2).unwrap()
+/// # };
 /// use my_keyring_shared::crypt::crypt;
 ///
 /// let encrypted_data = crypt(
@@ -99,18 +124,22 @@ pub fn crypt(shared_secret: SharedSecret, data: &[u8], iterations: u32) -> Crypt
 ///
 /// ```
 /// # use x448::{Secret, PublicKey};
-/// # use my_keyring_shared::crypt::CryptedMessage;
-/// # let secret_1 = Secret::from_bytes(&[4, 36, 208, 209, 253, 39, 109, 9, 136, 133, 28, 92, 92, 85, 39, 187, 162, 244, 121, 149, 65, 178, 13, 45, 102, 116, 29, 119, 43, 134, 133, 48, 12, 113, 211, 217, 171, 72, 181, 1, 247, 71, 235, 9, 227, 186, 34, 54, 82, 153, 32, 57, 204, 178, 227, 212]).unwrap();
-/// # let secret_2 = Secret::from_bytes(&[60, 126, 173, 166, 53, 200, 49, 76, 45, 1, 94, 173, 141, 43, 216, 220, 143, 128, 6, 191, 211, 195, 126, 33, 171, 41, 12, 66, 89, 143, 53, 124, 29, 71, 56, 98, 71, 167, 30, 144, 243, 19, 18, 179, 44, 103, 126, 149, 62, 246, 207, 141, 112, 194, 188, 144]).unwrap();
-/// # let shared_secret = secret_1.as_diffie_hellman(&PublicKey::from(&secret_2)).unwrap();
-/// # let encrypted_data = CryptedMessage {
-/// #     salt: [46, 114, 42, 247, 114, 178, 92, 218, 139, 8, 250, 49, 230, 139, 253, 5],
-/// #     data: vec![201, 229, 129, 4, 196, 107, 154, 88, 169, 218, 232, 211, 241, 102, 199, 41, 232, 165, 101, 149, 52, 85, 94, 167, 229, 130, 18, 217, 74, 110, 247, 101, 54, 255, 245, 28, 28, 134, 160, 67, 123, 159, 152, 201, 21, 222, 149, 211, 11, 207, 135, 55, 245, 135, 108, 61, 86, 162, 243, 108, 93, 143, 58, 203, 57, 9, 114, 182, 196, 218, 156, 101, 92, 226, 93, 117, 169, 73, 251, 250, 235, 226],
-/// #     hmac: [124, 248, 104, 80, 231, 11, 47, 53, 74, 139, 12, 143, 210, 49, 157, 147, 208, 101, 51, 45, 167, 59, 27, 236, 188, 37, 82, 151, 176, 82, 36, 229, 222, 100, 231, 242, 87, 141, 67, 74, 109, 103, 146, 75, 97, 25, 90, 176, 55, 94, 134, 38, 221, 131, 191, 254, 167, 235, 12, 36, 207, 95, 127, 233]
+/// # use rand_core::OsRng;
+/// # let secret_1 = Secret::new(&mut OsRng);
+/// # let secret_2 = Secret::new(&mut OsRng);
+/// # let public_key_2 = PublicKey::from(&secret_2);
+/// # let shared_secret = secret_1.as_diffie_hellman(&public_key_2).unwrap();
+/// # let receive_encrypted_message = || {
+/// #     use my_keyring_shared::crypt::crypt;
+/// #     crypt(
+/// #         secret_1.as_diffie_hellman(&public_key_2).unwrap(),
+/// #         b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec et ultricies augue.",
+/// #         20_000
+/// #     )
 /// # };
 /// use my_keyring_shared::crypt::decrypt;
 ///
-/// let decrypted_data = decrypt(shared_secret, encrypted_data, 20_000 );
+/// let decrypted_data = decrypt(shared_secret, receive_encrypted_message(), 20_000 );
 ///
 /// assert!(decrypted_data.is_ok());
 /// assert_eq!(
@@ -189,11 +218,13 @@ fn derive_keys(shared: &[u8], nonce: Option<Salt>, iterations: u32) -> (Salt, De
 
 #[cfg(test)]
 mod tests {
+    use test::Bencher;
+
     use x448::{PublicKey, Secret};
 
-    use super::*;
     use crate::MyKeyringError;
-    use test::Bencher;
+
+    use super::*;
 
     const ITERATIONS: u32 = 100_000;
     const MESSAGE: &[u8] = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec et ultricies augue. Etiam ultrices massa diam, id laoreet neque lobortis.";

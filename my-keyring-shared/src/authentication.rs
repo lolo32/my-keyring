@@ -29,6 +29,7 @@ impl Authentication {
 }
 
 impl Tags for Authentication {
+    #[inline]
     fn tags(&mut self) -> &mut Vec<Ulid> {
         &mut self.tags
     }
