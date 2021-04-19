@@ -9,4 +9,5 @@ pub enum MyKeyringError {
     InvalidBase32,
     /// The array of byte cannot be deserialized, it seems to be invalid
     InvalidCryptedMessage,
+    InvalidKeyLength,
 }

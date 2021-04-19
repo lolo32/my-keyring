@@ -84,6 +84,7 @@ pub mod crypt;
 mod errors;
 mod keys;
 mod note;
+pub mod request;
 mod tag;
 pub mod totp;
 

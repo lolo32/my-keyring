@@ -1,8 +1,11 @@
-use crate::crypt::{Salt, HMAC_LENGTH, SALT_LENGTH};
-use crate::MyKeyringError;
+use core::convert::{TryFrom, TryInto};
+
 use bincode::{deserialize, serialize};
-use core::fmt;
-use std::convert::TryFrom;
+
+use crate::{
+    crypt::{Salt, HMAC_LENGTH},
+    MyKeyringError,
+};
 
 /// Represent a message encrypted, and the information needed to decrypt it
 pub struct CryptedMessage {
@@ -14,11 +17,7 @@ pub struct CryptedMessage {
     pub(crate) hmac: [u8; HMAC_LENGTH],
 }
 
-impl fmt::Debug for CryptedMessage {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("CryptedMessage { .. }")
-    }
-}
+opaque_debug::implement!(CryptedMessage);
 
 impl TryFrom<&[u8]> for CryptedMessage {
     type Error = MyKeyringError;
@@ -64,23 +63,9 @@ impl<'de> serde::Deserialize<'de> for CryptedMessage {
         let (salt, hmac, data): SerdeMessage = serde::Deserialize::deserialize(deserializer)?;
 
         Ok(CryptedMessage {
-            salt: vec_to_salt(salt),
+            salt: salt.try_into().expect("Salt"),
             data,
-            hmac: vec_to_hmac(hmac),
+            hmac: hmac.try_into().expect("Hmac"),
         })
     }
-}
-
-#[inline]
-fn vec_to_salt(data: Vec<u8>) -> Salt {
-    let mut salt = [0; SALT_LENGTH];
-    salt.copy_from_slice(&data);
-    salt
-}
-
-#[inline]
-fn vec_to_hmac(data: Vec<u8>) -> [u8; HMAC_LENGTH] {
-    let mut mac = [0; HMAC_LENGTH];
-    mac.copy_from_slice(&data);
-    mac
 }

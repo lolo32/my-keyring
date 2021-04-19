@@ -46,6 +46,8 @@ use x448::SharedSecret;
 use crate::algo::Algorithm;
 
 pub use self::message::CryptedMessage;
+use crate::MyKeyringError;
+use core::convert::TryInto;
 
 mod message;
 
@@ -91,7 +93,11 @@ type Derived = [u8; DERIVED_LENGTH];
 ///     20_000
 /// );
 /// ```
-pub fn crypt(shared_secret: SharedSecret, data: &[u8], iterations: u32) -> CryptedMessage {
+pub fn crypt(
+    shared_secret: SharedSecret,
+    data: &[u8],
+    iterations: u32,
+) -> crate::Result<CryptedMessage> {
     // Derive the shared_secret using PBKDF2_HmacSha512
     let (salt, keys) = derive_keys(shared_secret.as_bytes(), None, iterations);
 
@@ -103,7 +109,7 @@ pub fn crypt(shared_secret: SharedSecret, data: &[u8], iterations: u32) -> Crypt
     };
 
     // split the derived password into usable keys/iv
-    let (key_chacha, iv_chacha, key_hmac) = split_keys(&keys);
+    let (key_chacha, iv_chacha, key_hmac) = split_keys(&keys)?;
 
     // Create cipher instance
     let mut cipher = XChaCha20::new_var(&key_chacha, &iv_chacha).expect("XChaCha20 engine");
@@ -112,9 +118,9 @@ pub fn crypt(shared_secret: SharedSecret, data: &[u8], iterations: u32) -> Crypt
 
     // compute HMAC
     let digest = Algorithm::Sha512.hmac(&key_hmac, &encrypted_message.data);
-    encrypted_message.hmac.copy_from_slice(&digest);
+    encrypted_message.hmac = digest.try_into().expect("Hmac");
 
-    encrypted_message
+    Ok(encrypted_message)
 }
 
 /// Decrypt an encrypted message, based on `based_secret`, the `encrypted` message data and
@@ -135,7 +141,7 @@ pub fn crypt(shared_secret: SharedSecret, data: &[u8], iterations: u32) -> Crypt
 /// #         secret_1.as_diffie_hellman(&public_key_2).unwrap(),
 /// #         b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec et ultricies augue.",
 /// #         20_000
-/// #     )
+/// #     ).unwrap()
 /// # };
 /// use my_keyring_shared::crypt::decrypt;
 ///
@@ -160,7 +166,7 @@ pub fn decrypt(
     // Derive the shared_secret using PBKDF2_HmacSha512
     let (_salt, keys) = derive_keys(shared_secret.as_bytes(), Some(encrypted.salt), iterations);
     // split the derived password into usable keys/iv
-    let (key_chacha, iv_chacha, key_hmac) = split_keys(&keys);
+    let (key_chacha, iv_chacha, key_hmac) = split_keys(&keys)?;
 
     // Check the Hmac signature
     Algorithm::Sha512.hmac_verify(&key_hmac, &encrypted.data, &encrypted.hmac)?;
@@ -174,21 +180,21 @@ pub fn decrypt(
 }
 
 /// Split the derived keys from PBKDF2 into usable array data
-fn split_keys(keys: &[u8]) -> (Key, Iv, Key) {
+fn split_keys(keys: &[u8]) -> crate::Result<(Key, Iv, Key)> {
     // extract the first key (encryption)
-    let mut boundary = (0, KEY_LENGTH);
-    let mut key_1 = [0; KEY_LENGTH];
-    key_1.copy_from_slice(&keys[(boundary.0)..(boundary.1)]);
+    let key_chacha = keys[..KEY_LENGTH]
+        .try_into()
+        .map_err(|_| MyKeyringError::InvalidKeyLength)?;
     // Extract the IV
-    boundary = (boundary.1, boundary.1 + IV_LENGTH);
-    let mut iv = [0; IV_LENGTH];
-    iv.copy_from_slice(&keys[(boundary.0)..(boundary.1)]);
+    let iv = keys[KEY_LENGTH..(KEY_LENGTH + IV_LENGTH)]
+        .try_into()
+        .map_err(|_| MyKeyringError::InvalidKeyLength)?;
     // Extract the second key (hmac)
-    boundary = (boundary.1, boundary.1 + KEY_LENGTH);
-    let mut key_2 = [0; KEY_LENGTH];
-    key_2.copy_from_slice(&keys[(boundary.0)..(boundary.1)]);
+    let key_hmac = keys[(KEY_LENGTH + IV_LENGTH)..]
+        .try_into()
+        .map_err(|_| MyKeyringError::InvalidKeyLength)?;
 
-    (key_1, iv, key_2)
+    Ok((key_chacha, iv, key_hmac))
 }
 
 /// Derive a password using PBKDF2_HmacSha512 algorithm
@@ -240,7 +246,7 @@ mod tests {
 
             let shared = secret_1.as_diffie_hellman(&public_key_2).unwrap();
 
-            test::black_box(super::crypt(shared, MESSAGE, ITERATIONS));
+            test::black_box(super::crypt(shared, MESSAGE, ITERATIONS).unwrap());
         })
     }
 
@@ -256,7 +262,7 @@ mod tests {
         let shared_1 = secret_1.as_diffie_hellman(&public_key_2).unwrap();
         let shared_2 = secret_2.as_diffie_hellman(&public_key_1).unwrap();
 
-        let encrypted = crypt(shared_1, MESSAGE, ITERATIONS);
+        let encrypted = crypt(shared_1, MESSAGE, ITERATIONS)?;
         let clear = decrypt(shared_2, encrypted, ITERATIONS)?;
         assert_eq!(MESSAGE, &clear);
 
@@ -265,7 +271,7 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn crypt_then_wrong_decrypt() {
+    fn crypt_then_wrong_decrypt() -> crate::Result<()> {
         let secret_1 = Secret::new(&mut OsRng);
         let public_key_1 = PublicKey::from(&secret_1);
 
@@ -276,10 +282,12 @@ mod tests {
         let shared_1 = secret_1.as_diffie_hellman(&public_key_2).unwrap();
         let shared_2 = secret_3.as_diffie_hellman(&public_key_1).unwrap();
 
-        let encrypted = crypt(shared_1, MESSAGE, ITERATIONS);
+        let encrypted = crypt(shared_1, MESSAGE, ITERATIONS)?;
         let wrong = decrypt(shared_2, encrypted, ITERATIONS);
 
         assert!(wrong.is_err());
         assert_eq!(wrong.unwrap_err(), MyKeyringError::IncorrectHmac);
+
+        Ok(())
     }
 }
