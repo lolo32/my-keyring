@@ -8,5 +8,6 @@ edition = "2018"
 
 [workspace]
 members = [
-    "my-keyring-shared"
+    "my-keyring-shared",
+    "my-keyring-server"
 ]
