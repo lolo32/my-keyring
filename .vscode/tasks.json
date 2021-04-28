@@ -1,0 +1,21 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Run server",
+            "group": "build",
+            "type": "shell",
+            "command": "RUST_BACKTRACE=1 cargo run --package my-keyring-server --bin server",
+            "isBackground": true,
+            "problemMatcher": []
+        },
+        {
+            "label": "Watch",
+            "group": "build",
+            "type": "shell",
+            "command": "cargo watch --exec clippy",
+            "problemMatcher": "$rustc-watch",
+            "isBackground": true
+        }
+    ]
+}

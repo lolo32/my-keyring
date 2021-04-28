@@ -1,155 +1,119 @@
-use std::{
-    future::Future,
-    net::SocketAddr,
-    pin::Pin,
-    task::{Context, Poll},
-};
-
-use hyper::{
-    body::Bytes,
-    service::Service,
-    {Body, Method, Request, Response, Server, StatusCode},
-};
 use std::collections::HashMap;
+
+use futures::future::join_all;
+use log::{debug, trace};
+use my_keyring_shared::request::RequestId;
+use once_cell::sync::Lazy;
+use saphir::prelude::*;
 use tokio::{
     sync::RwLock,
     time::{Duration, Instant},
 };
 use ulid::Ulid;
 
-mod api;
+mod guard;
+mod middleware;
+mod route;
+mod timing;
 
-lazy_static::lazy_static! {
-    static ref SSE_POOL: RwLock<HashMap<Ulid, Sse>> = RwLock::const_new(HashMap::new());
-}
+static SSE_POOL: Lazy<RwLock<HashMap<Ulid, Sse>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
-pub async fn main(addr: &SocketAddr) {
-    lazy_static::initialize(&SSE_POOL);
+pub async fn main(addr: &str) -> Result<(), SaphirError> {
+    {
+        let _ = SSE_POOL.read().await;
+    }
 
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_secs(10));
+        let mut interval = tokio::time::interval_at(
+            Instant::now() + Duration::from_secs(20),
+            Duration::from_secs(5),
+        );
 
         loop {
             interval.tick().await;
+
             let t = Instant::now();
-            println!("<<< SSE heartbeat");
+            trace!(">>> SSE heartbeat");
             let mut to_remove = Vec::new();
-            {
+            let connections = {
                 let mut sse_pool = SSE_POOL.write().await;
+                let mut connections = Vec::new();
+                trace!("SSE 0\t{}", t.elapsed().as_micros());
                 for (id, sse) in (*sse_pool).iter_mut() {
-                    match sse.heartbeat().await {
-                        Ok(()) => {}
-                        Err(_) => {
-                            // remove the entry, already closed
-                            to_remove.push(*id);
-                        }
+                    debug!(">>> SSE: {}", id);
+                    connections.push(sse.heartbeat(*id));
+                }
+                join_all(connections).await
+            };
+            trace!("SSE 1\t{}", t.elapsed().as_micros());
+            for (id, connection) in connections {
+                match connection {
+                    Ok(()) => {}
+                    Err(_) => {
+                        // remove the entry, already closed
+                        to_remove.push(id);
                     }
                 }
             }
+            trace!("SSE 2\t{}", t.elapsed().as_micros());
             {
                 let mut sse_pool = SSE_POOL.write().await;
                 for id in to_remove {
                     (*sse_pool).remove(&id);
                 }
             }
-            println!(">>> {}", t.elapsed().as_micros());
+            trace!(">>> SSE {}", t.elapsed().as_micros());
         }
     });
-    let server = Server::bind(&addr).serve(MakeSvc);
-    if let Err(e) = server.await {
-        eprintln!("server error: {}", e);
-    }
-}
 
-struct MakeSvc;
-
-impl<T> Service<T> for MakeSvc {
-    type Response = Svc;
-    type Error = hyper::Error;
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
-
-    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn call(&mut self, _req: T) -> Self::Future {
-        let fut = async move { Ok(Svc) };
-        Box::pin(fut)
-    }
-}
-
-struct Svc;
-
-impl Service<Request<Body>> for Svc {
-    type Response = Response<Body>;
-    type Error = hyper::Error;
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
-
-    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn call(&mut self, req: Request<Body>) -> Self::Future {
-        let instant = Instant::now();
-        let method = req.method().clone();
-        let uri = req.uri().clone();
-
-        Box::pin(async move {
-            let res = handle(req).await.unwrap_or_else(|| {
-                Response::builder()
-                    .status(StatusCode::NOT_FOUND)
-                    .body(Body::empty())
-                    .unwrap()
-            });
-
-            println!(
-                "{} {} {} {}µs",
-                method,
-                uri,
-                res.status(),
-                instant.elapsed().as_micros()
-            );
-
-            Ok(res)
+    let server = Server::builder()
+        .configure_listener(|l| l.server_name("MyKeyring").interface(addr))
+        .configure_middlewares(|m| {
+            m.apply(crate::middleware::LogMiddleware::new(), vec!["/"], None)
+                .apply(crate::middleware::TimingMiddleware::new(), vec!["/"], None)
         })
-    }
-}
-
-async fn handle(req: Request<Body>) -> Option<Response<Body>> {
-    let method = req.method().clone();
-    let uri = req.uri().clone();
-
-    let res = match (&method, uri.path()) {
-        (&Method::POST, "/api/request") => api::request(req).await,
-
-        _ => {
-            let uri = uri.path().replace("%2f", "/").replace("%2F", "/");
-            let uri: Vec<&str> = uri.as_str().split('/').collect();
-            let uri = uri[1..].to_vec();
-
-            if uri.get(0) == Some(&"api") {
-                return api::dynamic_handle(&uri[1..], req).await;
-            }
-            return None;
-        }
-    };
-
-    Some(res)
+        .configure_router(|r| {
+            r.controller(crate::route::MyKeyringApiController {})
+                .controller(A)
+        })
+        .build();
+    // if let Err(e) = server.run().await {
+    //     eprintln!("server error: {}", e);
+    // }
+    server.run().await
 }
 
 #[derive(Debug)]
 struct Sse {
-    sender: hyper::body::Sender,
+    sender: saphir::hyper::body::Sender,
+    last_heartbeat: Instant,
+    request_id: RequestId,
 }
 
 impl Sse {
-    pub async fn heartbeat(&mut self) -> Result<(), hyper::Error> {
-        self.send("", "").await
+    pub async fn heartbeat(&mut self, id: Ulid) -> (Ulid, Result<(), impl Responder>) {
+        if self.last_heartbeat + Duration::from_secs(10) < Instant::now() {
+            self.last_heartbeat = Instant::now();
+            (id, self.send("", "").await)
+        } else {
+            (id, Ok(()))
+        }
     }
 
-    pub async fn send(&mut self, id: &str, msg: &str) -> Result<(), hyper::Error> {
+    pub async fn send(&mut self, id: &str, msg: &str) -> Result<(), SaphirError> {
         self.sender
             .send_data(Bytes::from(format!("{}:{}\n\n", id, msg)))
             .await
+            .map_err(|e| SaphirError::Other(e.to_string()))
+    }
+}
+
+struct A;
+
+#[controller(prefix = "api", version = 2)]
+impl A {
+    #[post("/b")]
+    async fn post_b(&self, request_id: Json<RequestId>) -> (u16, Json<RequestId>) {
+        (200, request_id)
     }
 }
