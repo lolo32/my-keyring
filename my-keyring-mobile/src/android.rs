@@ -1,9 +1,11 @@
 use std::ffi::CString;
 
 use android_logger::{Config, FilterBuilder};
-use jni::objects::{JClass, JString};
-use jni::sys::jstring;
-use jni::JNIEnv;
+use jni::{
+    objects::{JClass, JString},
+    sys::jstring,
+    JNIEnv,
+};
 use log::Level;
 
 #[no_mangle]
@@ -19,7 +21,8 @@ pub unsafe extern "C" fn Java_eu_baysse_mykeyring_helper_RustGreeting_greeting(
             .expect("invalid pattern string")
             .as_ptr(),
     );
-    // Retake pointer so that we can use it below and allow memory to be freed when it goes out of scope.
+    // Retake pointer so that we can use it below and allow memory to be freed when
+    // it goes out of scope.
     let world_ptr = CString::from_raw(world);
     let output = env
         .new_string(world_ptr.to_str().unwrap())

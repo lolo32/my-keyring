@@ -1,18 +1,20 @@
+use std::borrow::BorrowMut;
+
 use log::{debug, warn};
+use my_keyring_shared::{
+    request::{PushRequest, ResponseId},
+    security::{SipHash, SipHashKeys},
+};
 use saphir::{hyper::body, prelude::*};
 use tokio::time::Instant;
 use ulid::Ulid;
 
-use my_keyring_shared::request::{PushRequest, ResponseId};
-
-use crate::sse::SseData;
-use crate::utils::read_body;
 use crate::{
+    sse::SseData,
     timing::{new_responder, Timing},
+    utils::read_body,
     SSE_POOL,
 };
-use my_keyring_shared::security::{SipHash, SipHashKeys};
-use std::borrow::BorrowMut;
 
 #[inline]
 fn get_sse_data(sse_data: &SseData) -> Option<(&PushRequest, SipHashKeys)> {

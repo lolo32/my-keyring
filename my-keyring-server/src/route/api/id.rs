@@ -1,17 +1,14 @@
 use log::debug;
+use my_keyring_shared::{request::PushRequest, security::SipHash};
 use saphir::prelude::*;
 use tokio::time::Instant;
+use ulid::Ulid;
 
-use my_keyring_shared::request::PushRequest;
-
-use crate::sse::SseData;
 use crate::{
-    sse::Sse,
+    sse::{Sse, SseData},
     timing::{new_responder, Timing},
     SSE_POOL,
 };
-use my_keyring_shared::security::SipHash;
-use ulid::Ulid;
 
 pub mod response;
 

@@ -1,6 +1,7 @@
+use std::str::FromStr;
+
 use saphir::prelude::{Json, Request, SaphirError};
 use serde::Deserialize;
-use std::str::FromStr;
 
 #[inline]
 pub async fn read_body<T>(req: &mut Request) -> Result<T, SaphirError>

@@ -4,8 +4,10 @@ use saphir::prelude::*;
 use tokio::time::Instant;
 use ulid::Ulid;
 
-use crate::timing::extract_timing;
-use crate::utils::{read_body, read_param};
+use crate::{
+    timing::extract_timing,
+    utils::{read_body, read_param},
+};
 
 mod api;
 
@@ -25,6 +27,7 @@ impl MyKeyringApiController {
             }),
         )
     }
+
     #[inline]
     async fn healthz(&self, _req: Request) -> (StatusCode, &'static str) {
         (StatusCode::OK, "Up")
@@ -64,6 +67,7 @@ impl MyKeyringApiController {
         };
         api::id::response::get_ulid(req, timing, id).await
     }
+
     #[inline]
     async fn post_api_id_response_ulid(
         &self,

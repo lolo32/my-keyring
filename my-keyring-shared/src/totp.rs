@@ -1,7 +1,7 @@
 //! Contains the code to generate TOTP code and decode base32 challenge
 //!
-//! The base32 string decoding will be done internally. Any space or dash or padding
-//! will be ignored during base32 processing
+//! The base32 string decoding will be done internally. Any space or dash or
+//! padding will be ignored during base32 processing
 //!
 //! # Examples
 //!
@@ -36,10 +36,10 @@ use std::time::SystemTime;
 use base32::{decode, Alphabet};
 use serde::{Deserialize, Serialize};
 
-use crate::algo::Algorithm;
-use crate::errors::MyKeyringError;
+use crate::{algo::Algorithm, errors::MyKeyringError};
 
-/// Decode a base32 encoded string, removing padding and optional `-` (dash) or `space`
+/// Decode a base32 encoded string, removing padding and optional `-` (dash) or
+/// `space`
 ///
 /// # Examples
 ///
@@ -124,8 +124,8 @@ impl Totp {
     ///
     /// # Errors
     ///
-    /// Return [`MyKeyringError::InvalidBase32`] error if the provided `secret` is not
-    /// a valid base32 encoded string
+    /// Return [`MyKeyringError::InvalidBase32`] error if the provided `secret`
+    /// is not a valid base32 encoded string
     pub fn new(
         secret: &str,
         digits: impl Into<Option<u8>>,
@@ -197,15 +197,17 @@ impl Totp {
             | u64::from(digest[offset + 3]) & 0xff;
         let binary = binary % (10_u64.pow(self.digits.into()));
 
-        // Prepend with additional 0 to have digits length Token and convert it to String
+        // Prepend with additional 0 to have digits length Token and convert it to
+        // String
         format!("{:0>1$}", binary, usize::from(self.digits))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use test::Bencher;
+
+    use super::*;
 
     #[test]
     fn base32_decoding() {
@@ -285,7 +287,8 @@ mod tests {
 
     #[test]
     fn tests_vectors_rfc4226_sha1_6chars() -> crate::Result<()> {
-        // These are normally HTOP test vectors, but can be used if `period` is one second
+        // These are normally HTOP test vectors, but can be used if `period` is one
+        // second
 
         // 12345678901234567890
         let seed = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";

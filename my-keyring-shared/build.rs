@@ -1,9 +1,4 @@
-use std::ffi::OsStr;
-use std::fs::File;
-use std::io::Write;
-use std::path::Path;
-use std::process::Command;
-use std::{env, io};
+use std::{env, ffi::OsStr, fs::File, io, io::Write, path::Path, process::Command};
 
 fn main() -> io::Result<()> {
     let dst = Path::new(&env::var("OUT_DIR").unwrap()).join("built.rs");

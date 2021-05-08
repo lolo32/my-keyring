@@ -1,5 +1,4 @@
-use my_keyring_shared::request::PushRequest;
-use my_keyring_shared::security::SipHashKeys;
+use my_keyring_shared::{request::PushRequest, security::SipHashKeys};
 use saphir::prelude::{Bytes, SaphirError};
 use tokio::time::{Duration, Instant};
 

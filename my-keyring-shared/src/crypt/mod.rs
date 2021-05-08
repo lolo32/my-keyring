@@ -43,9 +43,8 @@ use rand_core::{OsRng, RngCore};
 use sha2::Sha512;
 use x448::SharedSecret;
 
-use crate::MyKeyringError;
-
 pub use self::message::CryptedMessage;
+use crate::MyKeyringError;
 
 mod message;
 
@@ -110,8 +109,8 @@ pub fn crypt(
     Ok(encrypted_message)
 }
 
-/// Decrypt an encrypted message, based on `based_secret`, the `encrypted` message data and
-/// an optional context and application specific `context`.
+/// Decrypt an encrypted message, based on `based_secret`, the `encrypted`
+/// message data and an optional context and application specific `context`.
 ///
 /// # Examples
 ///
@@ -143,8 +142,9 @@ pub fn crypt(
 ///
 /// # Errors
 ///
-/// The value `MyKeyringError::IncorrectHmac` can be returned if the `shared_secret` is not
-/// valid, so the HMAC signature cannot be checked, or if the message has been altered
+/// The value `MyKeyringError::IncorrectHmac` can be returned if the
+/// `shared_secret` is not valid, so the HMAC signature cannot be checked, or if
+/// the message has been altered
 pub fn decrypt(
     shared_secret: SharedSecret,
     encrypted: CryptedMessage,
@@ -181,12 +181,13 @@ fn split_keys(keys: &[u8]) -> crate::Result<(KeyPoly, XNonce)> {
 
 /// Derive a password
 ///
-/// The `shared` is the original password to be derived, the `nonce` is calculated randomly
-/// if not specified and `context` represents hardcoded data, globally unique, and
-/// application-specific.
+/// The `shared` is the original password to be derived, the `nonce` is
+/// calculated randomly if not specified and `context` represents hardcoded
+/// data, globally unique, and application-specific.
 ///
-/// It returns the `salt`, either randomly generated if not specified or the `nonce` value if
-/// passed, a derived `key` and a `nonce` based on the input parameters.
+/// It returns the `salt`, either randomly generated if not specified or the
+/// `nonce` value if passed, a derived `key` and a `nonce` based on the input
+/// parameters.
 fn derive_keys(
     shared: &[u8],
     nonce: Option<Salt>,
@@ -215,12 +216,10 @@ fn derive_keys(
 #[cfg(test)]
 mod tests {
     use test::Bencher;
-
     use x448::{PublicKey, Secret};
 
-    use crate::MyKeyringError;
-
     use super::*;
+    use crate::MyKeyringError;
 
     const MESSAGE: &[u8] = b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec et ultricies augue. Etiam ultrices massa diam, id laoreet neque lobortis.";
 

@@ -1,10 +1,11 @@
-use std::ffi::{CStr, CString};
-use std::os::raw::c_char;
-
-use hyper::{body::to_bytes, client::Client, Body, Method, Request, Response};
-use log::{debug, error};
+use std::{
+    ffi::{CStr, CString},
+    os::raw::c_char,
+};
 
 use error::Error;
+use hyper::{body::to_bytes, client::Client, Body, Method, Request, Response};
+use log::{debug, error};
 
 /// Expose the JNI interface for android below
 #[cfg(target_os = "android")]

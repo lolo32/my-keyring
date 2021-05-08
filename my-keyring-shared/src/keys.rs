@@ -45,11 +45,11 @@ impl KeyRing {
     ///
     /// It returns the associated `PublicKey` that must be used to compute the
     /// `shared_secret` on the other side so it must be send to the other side,
-    /// and the `SharedSecret` computed from the `public_key` parameter and the ephemeral
-    /// private key.
+    /// and the `SharedSecret` computed from the `public_key` parameter and the
+    /// ephemeral private key.
     ///
-    /// It does some sanity check, and so compute as many ephemeral key as needed
-    /// to obtain a valid `SharedKey`.
+    /// It does some sanity check, and so compute as many ephemeral key as
+    /// needed to obtain a valid `SharedKey`.
     pub fn shared_with_ephemeral(&self, public_key: &PublicKey) -> (PublicKey, SharedSecret) {
         loop {
             let (public, shared) = self.gen_ephemeral(public_key);
@@ -59,19 +59,20 @@ impl KeyRing {
         }
     }
 
-    /// Generate a `SharedSecret` from the `public_key` and the local `PrivateKey`
+    /// Generate a `SharedSecret` from the `public_key` and the local
+    /// `PrivateKey`
     ///
-    /// The `SharedKey` computation is normally always valid here, sanity check already
-    /// done in the [`shared_with_ephemeral`] step.
+    /// The `SharedKey` computation is normally always valid here, sanity check
+    /// already done in the [`shared_with_ephemeral`] step.
     pub fn shared_from_public(&self, public_key: &PublicKey) -> SharedSecret {
         self.my_key
             .as_diffie_hellman(public_key)
             .expect("shared secret")
     }
 
-    /// Generate an ephemeral private key and it's associated public's, then make
-    /// the diffie hellman exchange with the ephemeral private and the provided
-    /// `public_key`
+    /// Generate an ephemeral private key and it's associated public's, then
+    /// make the diffie hellman exchange with the ephemeral private and the
+    /// provided `public_key`
     fn gen_ephemeral(&self, public_key: &PublicKey) -> (PublicKey, Option<SharedSecret>) {
         let ephemeral_secret = Secret::new(&mut OsRng);
         let ephemeral_public_key = PublicKey::from(&ephemeral_secret);

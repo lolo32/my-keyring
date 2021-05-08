@@ -85,7 +85,8 @@ impl Algorithm {
     ///
     /// # Errors
     ///
-    /// The value `MyKeyringError::IncorrectHmac` is return if the hmac verification is invalid
+    /// The value `MyKeyringError::IncorrectHmac` is return if the hmac
+    /// verification is invalid
     #[inline]
     pub fn hmac_verify(self, key: &[u8], data: &[u8], signature: &[u8]) -> crate::Result<()> {
         macro_rules! hmac_verify {
