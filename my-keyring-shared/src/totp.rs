@@ -9,7 +9,7 @@
 //!
 //! ```
 //! # fn main() -> my_keyring_shared::Result<()> {
-//! use my_keyring_shared::{Algorithm, totp::Totp};
+//! use my_keyring_shared::{totp::Totp, Algorithm};
 //! let totp = Totp::new("JBSWY3DPEB3W64TMMQQQ", None, None, None)?;
 //!
 //! println!("{}", totp.totp());
@@ -22,7 +22,7 @@
 //! Arbitrary timestamp, 1234567890 here, so 2009-02-13 at 23:31:30
 //! ```
 //! # fn main() -> my_keyring_shared::Result<()> {
-//! use my_keyring_shared::{Algorithm, totp::Totp};
+//! use my_keyring_shared::{totp::Totp, Algorithm};
 //! let totp = Totp::new("JBSWY3DPEB3W64TMMQQQ", None, None, None)?;
 //!
 //! let value = totp.totp_from_timestamp(1_234_567_890);
@@ -74,7 +74,7 @@ pub fn decode_base32(input: &str) -> crate::Result<Vec<u8>> {
 ///
 /// ```
 /// # fn main() -> my_keyring_shared::Result<()> {
-/// use my_keyring_shared::{Algorithm, totp::Totp};
+/// use my_keyring_shared::{totp::Totp, Algorithm};
 /// let totp = Totp::new("JBSWY3DPEB3W64TMMQQQ", 6, 30, Algorithm::Sha1)?;
 ///
 /// // Current timestamp
@@ -109,7 +109,7 @@ impl Totp {
     /// # Examples
     ///
     /// ```
-    /// use my_keyring_shared::{Algorithm, totp::Totp};
+    /// use my_keyring_shared::{totp::Totp, Algorithm};
     /// # fn main() -> my_keyring_shared::Result<()> {
     /// // Specifying only the secret
     /// let totp = Totp::new("JBSWY3DPEB3W64TMMQQQ", None, None, None)?;

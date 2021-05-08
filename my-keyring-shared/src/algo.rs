@@ -26,10 +26,14 @@ impl Algorithm {
     ///
     /// let digest = Algorithm::Sha256.hmac(
     ///     b"My_secr3tP@55w0rd",
-    ///     b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec et ultricies augue."
+    ///     b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec et ultricies augue.",
     /// );
-    /// assert_eq!(&digest, &[133, 77, 197, 178, 150, 26, 234, 99, 31, 141, 206, 214, 240, 207,
-    ///     68, 255, 59, 25, 141, 27, 124, 19, 60, 3, 134, 225, 149, 137, 9, 104, 109, 180]
+    /// assert_eq!(
+    ///     &digest,
+    ///     &[
+    ///         133, 77, 197, 178, 150, 26, 234, 99, 31, 141, 206, 214, 240, 207, 68, 255, 59, 25, 141,
+    ///         27, 124, 19, 60, 3, 134, 225, 149, 137, 9, 104, 109, 180
+    ///     ]
     /// );
     /// ```
     #[inline]
@@ -63,8 +67,10 @@ impl Algorithm {
     /// let verification = Algorithm::Sha256.hmac_verify(
     ///     b"My_secr3tP@55w0rd",
     ///     b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec et ultricies augue.",
-    ///     &[133, 77, 197, 178, 150, 26, 234, 99, 31, 141, 206, 214, 240, 207, 68, 255,
-    ///         59, 25, 141, 27, 124, 19, 60, 3, 134, 225, 149, 137, 9, 104, 109, 180]
+    ///     &[
+    ///         133, 77, 197, 178, 150, 26, 234, 99, 31, 141, 206, 214, 240, 207, 68, 255, 59, 25, 141,
+    ///         27, 124, 19, 60, 3, 134, 225, 149, 137, 9, 104, 109, 180,
+    ///     ],
     /// );
     /// assert!(verification.is_ok());
     /// ```
@@ -77,7 +83,7 @@ impl Algorithm {
     /// let verification = Algorithm::Sha256.hmac_verify(
     ///     b"My_secr3tP@55w0rd",
     ///     b"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec et ultricies augue.",
-    ///     b"12345678901234567890123456789012"
+    ///     b"12345678901234567890123456789012",
     /// );
     /// assert!(verification.is_err());
     /// assert_eq!(verification.unwrap_err(), MyKeyringError::IncorrectHmac);

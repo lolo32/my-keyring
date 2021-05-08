@@ -10,8 +10,9 @@
 //! # let secret_2 = Secret::new(&mut OsRng);
 //! # let public_key_2 = PublicKey::from(&secret_2);
 //! # let shared_secret = secret_1.as_diffie_hellman(&public_key_2).unwrap();
-//! use my_keyring_shared::crypt::{crypt, decrypt, CryptedMessage};
 //! use std::convert::TryFrom;
+//!
+//! use my_keyring_shared::crypt::{crypt, decrypt, CryptedMessage};
 //!
 //! let text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec et ultricies augue.";
 //!
