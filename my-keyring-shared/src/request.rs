@@ -3,12 +3,22 @@ use ulid::Ulid;
 
 #[derive(Deserialize, Serialize, Debug, Clone, Copy)]
 pub struct RequestId {
-    pub client_id: Ulid,
+    pub push_id: Ulid,
     pub authentication_id: Ulid,
     pub server_id: Ulid,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone, Copy)]
 pub struct ResponseId {
-    pub client_id: Ulid
+    pub client_id: Ulid,
+}
+
+/// Message sent from the requester to the server to ask a password.
+/// It asks for a push with the token `push_id`.
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct PushRequest {
+    /// Push token
+    pub push_id: String,
+    /// Data to send to the remote, generally a mobile
+    pub encrypted_data: Option<Vec<u8>>,
 }

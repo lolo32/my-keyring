@@ -10,4 +10,6 @@ pub enum MyKeyringError {
     /// The array of byte cannot be deserialized, it seems to be invalid
     InvalidCryptedMessage,
     InvalidKeyLength,
+    /// The length of the data exceed the max allowed value
+    DataLengthExceeded,
 }

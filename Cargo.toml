@@ -8,6 +8,10 @@ edition = "2018"
 
 [workspace]
 members = [
+    "my-keyring-mobile",
     "my-keyring-shared",
     "my-keyring-server"
 ]
+
+[profile.release]
+lto = true

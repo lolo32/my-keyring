@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">a_MyKeyring</string>
+    <string name="notification_title">Nouvelle notification</string>
+    <string name="default_notification_channel_id">Identifiant demandé</string>
+    <string name="name">Nom</string>
+    <string name="notification">Notification</string>
+    <string name="send">Envoyer</string>
+</resources>

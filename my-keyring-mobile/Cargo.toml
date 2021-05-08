@@ -1,0 +1,57 @@
+[package]
+name = "my-keyring-mobile"
+version = "0.1.0"
+authors = ["Lolo_32 <lol.b@free.fr>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "mykeyring"
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies.my-keyring-shared]
+path = "../my-keyring-shared"
+
+[dependencies.chacha20poly1305]
+version = "0.8.0"
+features = [
+    "xchacha20poly1305"
+]
+
+[dependencies.futures]
+version = "0.3.14"
+
+[dependencies.hkdf]
+version = "0.11.0"
+
+[dependencies.hyper]
+version = "0.14.7"
+
+[dependencies.hyper-rustls]
+version = "0.22.1"
+
+[dependencies.log]
+version = "0.4.14"
+features = [
+    "release_max_level_info"
+]
+
+[dependencies.tokio]
+version = "1.5.0"
+features = [
+    "rt-multi-thread"
+]
+
+#
+# Android specific stuff
+#
+
+[target.'cfg(target_os="android")'.dependencies.jni]
+#[dependencies.ndk]
+version = "0.19.0"
+#default-features = false
+
+[target.'cfg(target_os="android")'.dependencies.android_logger]
+#[dependencies.android_logger]
+version = "0.10.1"

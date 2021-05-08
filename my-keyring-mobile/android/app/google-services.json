@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "60510592978",
+    "project_id": "my-keyring",
+    "storage_bucket": "my-keyring.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:60510592978:android:545dc1230958b03b59720b",
+        "android_client_info": {
+          "package_name": "eu.baysse.mykeyring"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "60510592978-v8ui28okebchuof230l00gk6gnjp2acj.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDFKYijO6_cnqvWxVqMMLWf6Sgx0rW9NZ8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "60510592978-v8ui28okebchuof230l00gk6gnjp2acj.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

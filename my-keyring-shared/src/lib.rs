@@ -85,11 +85,14 @@ mod errors;
 mod keys;
 mod note;
 pub mod request;
+pub mod security;
 mod tag;
 pub mod totp;
 
 /// Specialized [`core::result::Result`] for this crate
 pub type Result<T> = core::result::Result<T, MyKeyringError>;
+
+include!(concat!(env!("OUT_DIR"), "/built.rs"));
 
 #[cfg(test)]
 mod tests {
