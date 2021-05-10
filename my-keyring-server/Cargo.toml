@@ -6,6 +6,16 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[dependencies.actix-web]
+version = "4.0.0-beta.6"
+default-features = false
+features = [
+    "rustls"
+]
+
+[dependencies.actix-utils]
+version = "3.0.0"
+
 [dependencies.env_logger]
 version = "0.8.3"
 
@@ -20,6 +30,10 @@ version = "2.1.0"
 
 [dependencies.log]
 version = "0.4.14"
+features = [
+    "max_level_trace",
+    "release_max_level_info",
+]
 
 [dependencies.my-keyring-shared]
 path = "../my-keyring-shared"
@@ -36,14 +50,6 @@ version = "0.4.0"
 [dependencies.rand]
 version = "0.6"
 
-[dependencies.saphir]
-version = "2.8.2"
-features = [
-    "https",
-    "json",
-    "macro"
-]
-
 [dependencies.serde]
 version = "1.0"
 features = [
@@ -54,16 +60,9 @@ features = [
 version = "1.0"
 
 [dependencies.tokio]
-version = "0.2.25"
+version = "1.5"
 features = [
-    "dns",
-    "fs",
-    "net",
-    "parking_lot",
-    "rt-core",
-    "rt-threaded",
-    "sync",
-    "time"
+    "rt-multi-thread"
 ]
 
 [dependencies.ulid]

@@ -1,25 +1,29 @@
 use std::collections::HashMap;
 
+use actix_web::{
+    dev::Service,
+    http::{HeaderName, HeaderValue},
+    middleware::Logger,
+    App, HttpMessage, HttpServer,
+};
 use futures::future::join_all;
 use log::{debug, info, trace};
 use my_keyring_shared::{request::PushRequest, RUSTC_VERSION};
 use once_cell::sync::Lazy;
-use saphir::prelude::*;
 use tokio::{
     sync::RwLock,
     time::{Duration, Instant},
 };
 
-mod guard;
-mod middleware;
+use crate::timing::Timing;
+
 mod route;
 mod sse;
 mod timing;
-mod utils;
 
 static SSE_POOL: Lazy<RwLock<HashMap<u128, sse::Sse>>> = Lazy::new(|| RwLock::new(HashMap::new()));
 
-pub async fn main(addr: &str) -> Result<(), SaphirError> {
+pub async fn main(addr: &str) -> std::io::Result<()> {
     {
         let _ = SSE_POOL.read().await;
     }
@@ -64,31 +68,33 @@ pub async fn main(addr: &str) -> Result<(), SaphirError> {
         }
     });
 
-    let server = Server::builder()
-        .configure_listener(|l| l.server_name("MyKeyring").interface(addr))
-        .configure_middlewares(|m| {
-            m.apply(crate::middleware::LogMiddleware::new(), vec!["/"], None)
-                .apply(crate::middleware::TimingMiddleware::new(), vec!["/"], None)
-        })
-        .configure_router(|r| {
-            r.controller(crate::route::MyKeyringApiController {})
-                .controller(A)
-        })
-        .build();
-    // if let Err(e) = server.run().await {
-    //     eprintln!("server error: {}", e);
-    // }
-    server.run().await
-}
+    HttpServer::new(|| {
+        App::new()
+            .wrap_fn(|req, srv| {
+                let instant = Instant::now();
+                req.extensions_mut().insert(Timing::new());
+                let fut = srv.call(req);
 
-struct A;
-
-#[controller(prefix = "api", version = 2)]
-impl A {
-    #[get("/b")]
-    async fn get_b(&self, request_id: Json<PushRequest>) -> (u16, Json<PushRequest>) {
-        (200, request_id)
-    }
+                async move {
+                    let mut res = fut.await?;
+                    let mut timing = match res.response().extensions().get::<Timing>() {
+                        Some(t) => t.clone(),
+                        None => Timing::new(),
+                    };
+                    timing.add_timing("tot", instant.elapsed(), None);
+                    res.response_mut().headers_mut().insert(
+                        "Server-Timing".parse().unwrap(),
+                        HeaderValue::from_str(&timing.to_string()).unwrap(),
+                    );
+                    Ok(res)
+                }
+            })
+            .wrap(Logger::default())
+            .configure(self::route::config)
+    })
+    .bind(addr)?
+    .run()
+    .await
 }
 
 #[cfg(test)]

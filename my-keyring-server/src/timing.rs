@@ -1,13 +1,39 @@
-use std::{fmt, time::Duration};
+use std::{
+    fmt,
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+    time::Duration,
+};
 
-use saphir::prelude::*;
+use actix_utils::future::{ready, Ready};
+use actix_web::{
+    dev::{MessageBody, Service, ServiceRequest, ServiceResponse, Transform},
+    http::StatusCode,
+    rt::time::Instant,
+    Error, HttpMessage, HttpRequest, HttpResponseBuilder,
+};
+use humantime::format_rfc3339_millis;
+use serde::Serialize;
 
-pub fn extract_timing(req: &Request) -> Timing {
+// use saphir::prelude::*;
+//
+// pub fn extract_timing(req: &Request) -> Timing {
+//     req.extensions().get::<Timing>().cloned().unwrap()
+// }
+//
+// pub fn new_responder(timing: Timing) -> Builder {
+//     Builder::new().extension(timing)
+// }
+
+pub fn extract_timing(req: &HttpRequest) -> Timing {
     req.extensions().get::<Timing>().cloned().unwrap()
 }
 
-pub fn new_responder(timing: Timing) -> Builder {
-    Builder::new().extension(timing)
+pub fn new_responder(timing: Timing, status: StatusCode) -> HttpResponseBuilder {
+    let mut res = HttpResponseBuilder::new(status);
+    res.extensions_mut().insert(timing);
+    res
 }
 
 #[derive(Debug, Clone)]

@@ -1,30 +1,29 @@
+use actix_web::{http::StatusCode, web, HttpRequest, Responder};
 use log::debug;
 use my_keyring_shared::{request::PushRequest, security::SipHash};
-use saphir::prelude::*;
 use tokio::time::Instant;
 use ulid::Ulid;
 
 use crate::{
     sse::{Sse, SseData},
-    timing::{new_responder, Timing},
+    timing::{extract_timing, new_responder},
     SSE_POOL,
 };
 
 pub mod response;
 
-/// POST /api/id/request
+pub fn config(cfg: &mut web::ServiceConfig) {
+    cfg.service(web::resource("/request").route(web::post().to(request)))
+        .service(web::scope("/response").configure(self::response::config));
+}
+
+/// POST /api/v1/id/request
 ///
 /// Used to request for a push authentication request
-pub async fn request(
-    _req: Request,
-    mut timing: Timing,
-    push_request: PushRequest,
-) -> Result<impl Responder, SaphirError> {
-    // Generate a hash with random keys based on the `push_id` that are known
-    // by the two sides (requester and remote) and are not communicated to the
-    // remote.
-    let response_url_sip_hash = SipHash::new(push_request.push_id.as_bytes());
+async fn request(req: HttpRequest, push_request: web::Json<PushRequest>) -> impl Responder {
+    let mut timing = extract_timing(&req);
 
+    let response_url_sip_hash = SipHash::new(push_request.push_id.as_bytes());
     debug!(
         "UlidHash: {}\nAuthToken: {}",
         Ulid::from(response_url_sip_hash.hash),
@@ -45,15 +44,12 @@ pub async fn request(
             Sse {
                 sender: None,
                 last_heartbeat: Instant::now(),
-                data: SseData::PushRequest(push_request, response_url_sip_hash.keys),
+                data: SseData::PushRequest(push_request.into_inner(), response_url_sip_hash.keys),
             },
         );
         timing.add_timing("ssew", instant.elapsed(), None);
     }
 
     // Generate then return the Server-Sent-Event response to the client
-    Ok(new_responder(timing)
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "text/plain")
-        .body(Ulid::from(response_url_sip_hash.keys).to_string()))
+    new_responder(timing, StatusCode::OK).body(Ulid::from(response_url_sip_hash.keys).to_string())
 }
