@@ -60,7 +60,7 @@ impl fmt::Display for Time {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)?;
         if let Some(desc) = &self.desc {
-            write!(f, ";desc=\"{}\";", desc.replace("\"", "\\\""))?;
+            write!(f, ";desc=\"{}\"", desc.replace("\"", "\\\""))?;
         }
         if let Some(dur) = &self.duration {
             let millis = dur.as_millis();

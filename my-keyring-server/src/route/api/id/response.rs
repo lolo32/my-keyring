@@ -205,8 +205,8 @@ pub async fn get_ulid(
 
     // Generate then return the Server-Sent-Event response to the client
     Ok(new_responder(timing, StatusCode::OK)
-        .insert_header((header::CACHE_CONTROL, "no-cache"))
-        .insert_header((header::CONTENT_ENCODING, "entity"))
+        .insert_header(header::CacheControl(vec![header::CacheDirective::NoCache]))
+        .insert_header(header::ContentEncoding("entity"))
         .insert_header((header::CONTENT_TYPE, "text/event-stream"))
         .streaming(body))
 }
