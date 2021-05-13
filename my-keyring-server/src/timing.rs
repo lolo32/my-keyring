@@ -1,20 +1,8 @@
-use std::{
-    fmt,
-    future::Future,
-    pin::Pin,
-    task::{Context, Poll},
-    time::Duration,
-};
+use std::fmt;
 
-use actix_utils::future::{ready, Ready};
-use actix_web::{
-    dev::{MessageBody, Service, ServiceRequest, ServiceResponse, Transform},
-    http::StatusCode,
-    rt::time::Instant,
-    Error, HttpMessage, HttpRequest, HttpResponseBuilder,
-};
+use actix_web::{http::StatusCode, HttpMessage, HttpRequest, HttpResponseBuilder};
 use humantime::format_rfc3339_millis;
-use serde::Serialize;
+use tokio::time::Duration;
 
 // use saphir::prelude::*;
 //

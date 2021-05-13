@@ -56,13 +56,14 @@ features = [
     "derive"
 ]
 
-[dependencies.serde_json]
-version = "1.0"
+#[dependencies.serde_json]
+#version = "1.0"
 
 [dependencies.tokio]
-version = "1.5"
+version = "1"
 features = [
-    "rt-multi-thread"
+    "time",
+    "sync"
 ]
 
 [dependencies.ulid]

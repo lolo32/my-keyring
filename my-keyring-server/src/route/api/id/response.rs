@@ -2,17 +2,19 @@ use std::borrow::BorrowMut;
 
 use actix_web::{
     http::{header, StatusCode},
-    web, Responder,
+    rt::time::Instant,
+    web, HttpRequest, Responder,
 };
 use log::{debug, warn};
-use my_keyring_shared::{
-    request::{PushRequest, ResponseId},
-    security::{SipHash, SipHashKeys},
-};
-use tokio::time::Instant;
+use my_keyring_shared::{request::PushRequest, security::SipHashKeys};
 use ulid::Ulid;
 
-use crate::{sse::SseData, timing::new_responder, utils::read_body, SSE_POOL};
+use crate::{
+    sse::SseData,
+    stream::SseStream,
+    timing::{extract_timing, new_responder},
+    SSE_POOL,
+};
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
@@ -106,8 +108,17 @@ fn get_sse_data(sse_data: &SseData) -> Option<(&PushRequest, SipHashKeys)> {
 ///
 /// Listening to the SSE send the push to the terminal and the associated
 /// encrypted data.
-pub async fn get_ulid(_req: Request, id: u128) -> Result<impl Responder, SaphirError> {
+pub async fn get_ulid(req: HttpRequest, id: String) -> actix_web::Result<impl Responder> {
     debug!("aaa");
+    let mut timing = extract_timing(&req);
+    let id = match Ulid::from_string(&id) {
+        Ok(id) => id.0,
+        Err(_) => {
+            return Ok(new_responder(timing, StatusCode::OK)
+                .status(StatusCode::NOT_FOUND)
+                .finish())
+        }
+    };
     // Retrieve the push_id associated with this `id`
     let push_id = {
         let instant = Instant::now();
@@ -125,7 +136,9 @@ pub async fn get_ulid(_req: Request, id: u128) -> Result<impl Responder, SaphirE
             // If a previous request requested this `id`
             if already_listener {
                 // A listener already registered, it's not allowed to listen 2 times
-                return Ok(new_responder(timing, StatusCode::OK).status(StatusCode::FORBIDDEN));
+                return Ok(new_responder(timing, StatusCode::OK)
+                    .status(StatusCode::FORBIDDEN)
+                    .finish());
             }
             // Returns if the `push_id` cannot be retrieved
             match push_id {
@@ -133,18 +146,22 @@ pub async fn get_ulid(_req: Request, id: u128) -> Result<impl Responder, SaphirE
                 Some(push_id) => push_id,
                 // The requested `sse_id` is a different type, so returns an error
                 None => {
-                    return Ok(new_responder(timing, StatusCode::OK).status(StatusCode::CONFLICT));
+                    return Ok(new_responder(timing, StatusCode::OK)
+                        .status(StatusCode::CONFLICT)
+                        .finish());
                 }
             }
         } else {
             // This `id` was not registered
-            return Ok(new_responder(timing, StatusCode::OK).status(StatusCode::NOT_FOUND));
+            return Ok(new_responder(timing, StatusCode::OK)
+                .status(StatusCode::NOT_FOUND)
+                .finish());
         }
     };
 
     // Generate a Sender to send body later in the code
     let body = {
-        let (sender, body) = body::Body::channel();
+        let (sender, body) = SseStream::new();
         let instant = Instant::now();
 
         // Register the `sender` and update `last_heartbeat` information
@@ -187,9 +204,8 @@ pub async fn get_ulid(_req: Request, id: u128) -> Result<impl Responder, SaphirE
 
     // Generate then return the Server-Sent-Event response to the client
     Ok(new_responder(timing, StatusCode::OK)
-        .status(StatusCode::OK)
-        .header(header::CACHE_CONTROL, "no-cache")
-        .header(header::CONTENT_ENCODING, "entity")
-        .header(header::CONTENT_TYPE, "text/event-stream")
-        .body(body))
+        .insert_header((header::CACHE_CONTROL, "no-cache"))
+        .insert_header((header::CONTENT_ENCODING, "entity"))
+        .insert_header((header::CONTENT_TYPE, "text/event-stream"))
+        .streaming(body))
 }

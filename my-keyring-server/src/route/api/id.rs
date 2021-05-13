@@ -1,7 +1,6 @@
-use actix_web::{http::StatusCode, web, HttpRequest, Responder};
+use actix_web::{http::StatusCode, rt::time::Instant, web, HttpRequest, Responder};
 use log::debug;
 use my_keyring_shared::{request::PushRequest, security::SipHash};
-use tokio::time::Instant;
 use ulid::Ulid;
 
 use crate::{
