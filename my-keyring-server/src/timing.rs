@@ -1,18 +1,8 @@
 use std::fmt;
 
-use actix_web::{http::StatusCode, HttpMessage, HttpRequest, HttpResponseBuilder};
+use actix_web::{http::StatusCode, HttpRequest, HttpResponseBuilder};
 use humantime::format_rfc3339_millis;
 use tokio::time::Duration;
-
-// use saphir::prelude::*;
-//
-// pub fn extract_timing(req: &Request) -> Timing {
-//     req.extensions().get::<Timing>().cloned().unwrap()
-// }
-//
-// pub fn new_responder(timing: Timing) -> Builder {
-//     Builder::new().extension(timing)
-// }
 
 pub fn extract_timing(req: &HttpRequest) -> Timing {
     req.extensions().get::<Timing>().cloned().unwrap()

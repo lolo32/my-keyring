@@ -10,6 +10,14 @@
             "problemMatcher": []
         },
         {
+            "label": "Build android i686 lib",
+            "group": "build",
+            "type": "shell",
+            "command": "cargo build --package my-keyring-mobile --target armv7-linux-androideabi",
+            "isBackground": true,
+            "problemMatcher": []
+        },
+        {
             "label": "Watch",
             "group": "build",
             "type": "shell",

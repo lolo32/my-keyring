@@ -13,7 +13,18 @@ pub mod response;
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(web::resource("/request").route(web::post().to(request)))
+        .service(web::resource("/save").route(web::post().to(save)))
         .service(web::scope("/response").configure(self::response::config));
+}
+
+/// POST /api/v1/id/save
+/// TODO
+async fn save(req: HttpRequest, response_id: String) -> impl Responder {
+    let mut timing = extract_timing(&req);
+
+    println!("{:?}", response_id);
+
+    new_responder(timing, StatusCode::NOT_IMPLEMENTED).finish()
 }
 
 /// POST /api/v1/id/request

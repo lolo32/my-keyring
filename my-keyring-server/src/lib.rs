@@ -12,6 +12,7 @@ use tokio::{sync::RwLock, time::Duration};
 
 use crate::timing::Timing;
 
+mod error;
 mod route;
 mod sse;
 mod stream;

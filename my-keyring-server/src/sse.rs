@@ -1,10 +1,6 @@
-use actix_web::rt::time::Instant;
+use actix_web::{rt::time::Instant, web::Bytes};
 use my_keyring_shared::{request::PushRequest, security::SipHashKeys};
-use tokio::time::Duration;
-use tokio::sync::mpsc::Sender;
-use actix_web::web::Bytes;
-use actix_web::Error;
-use tokio::sync::mpsc::error::TrySendError;
+use tokio::{sync::mpsc::Sender, time::Duration};
 
 #[derive(Debug)]
 #[non_exhaustive]
@@ -21,7 +17,7 @@ pub struct Sse {
 }
 
 impl Sse {
-    pub async fn heartbeat(&mut self, id: u128) -> (u128, Result<(), TrySendError<Bytes>>) {
+    pub async fn heartbeat(&mut self, id: u128) -> (u128, Result<(), crate::error::Error>) {
         if self.last_heartbeat + Duration::from_secs(15) < Instant::now() {
             self.last_heartbeat = Instant::now();
             (id, self.send("heart", "💓"))
@@ -30,17 +26,18 @@ impl Sse {
         }
     }
 
-    pub fn send(&mut self, id: &str, msg: &str) -> Result<(), TrySendError<Bytes>> {
+    pub fn send(&mut self, id: &str, msg: &str) -> Result<(), crate::error::Error> {
         if let Some(sender) = self.sender.as_mut() {
-                let msg = if id.is_empty() {
-                    format!(": {}\n\n", msg)
-                } else {
-                    format!("event: {}\ndata: {}\n\n", id, msg)
-                };
-                sender
-                    .try_send(Bytes::from(msg))
+            let msg = if id.is_empty() {
+                format!(": {}\n\n", msg)
+            } else {
+                format!("event: {}\ndata: {}\n\n", id, msg)
+            };
+            sender
+                .try_send(Bytes::from(msg))
+                .map_err(|_| crate::error::Error::SseClosed)
         } else {
-            Err(TrySendError::Closed(Default::default()))
+            Err(crate::error::Error::SseClosed)
         }
     }
 }

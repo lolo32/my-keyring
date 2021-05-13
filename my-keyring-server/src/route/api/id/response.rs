@@ -6,7 +6,10 @@ use actix_web::{
     web, HttpRequest, Responder,
 };
 use log::{debug, warn};
-use my_keyring_shared::{request::PushRequest, security::SipHashKeys};
+use my_keyring_shared::{
+    request::{PushRequest, ResponseId},
+    security::{SipHash, SipHashKeys},
+};
 use ulid::Ulid;
 
 use crate::{
@@ -18,8 +21,9 @@ use crate::{
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
-        web::resource("/{id}").route(web::get().to(get_ulid)), /* .route(web::post().
-                                                                * to(post_ulid)), */
+        web::resource("/{id}")
+            .route(web::get().to(get_ulid))
+            .route(web::post().to(post_ulid)),
     );
 }
 
@@ -31,76 +35,74 @@ fn get_sse_data(sse_data: &SseData) -> Option<(&PushRequest, SipHashKeys)> {
     }
 }
 
-// /// POST /api/v1/id/response/[Ulid]
-// ///
-// /// Process the response from the device that have the response
-// pub async fn post_ulid(mut req: Request, id: u128) -> Result<impl Responder,
-// SaphirError> {     debug!("a");
-//     // Check if the id is known and valid
-//     let (request_client_id, keys) = {
-//         let instant = Instant::now();
-//         let senders = SSE_POOL.read().await;
-//         let request_client_id = (*senders).get(&id);
-//         timing.add_timing("get", instant.elapsed(), None);
-//
-//         match request_client_id {
-//             Some(sse) => {
-//                 if let Some((pr, k)) = get_sse_data(&sse.data) {
-//                     (pr.clone(), k)
-//                 } else {
-//                     return Ok(new_responder(timing,
-// StatusCode::OK).status(StatusCode::CONFLICT));                 }
-//             }
-//             None => {
-//                 warn!("SSE stream id does not exists");
-//                 return Ok(new_responder(timing,
-// StatusCode::OK).status(StatusCode::NOT_FOUND));             }
-//         }
-//     };
-//
-//     debug!("b");
-//     let response_id = {
-//         let instant = Instant::now();
-//         let response_id = read_body::<ResponseId>(&mut req).await;
-//         timing.add_timing("serde", instant.elapsed(), None);
-//
-//         match response_id {
-//             Ok(j) => j,
-//             Err(e) => {
-//                 warn!("{:?}", e);
-//                 return Ok(new_responder(timing,
-// StatusCode::OK).status(StatusCode::FORBIDDEN));             }
-//         }
-//     };
-//
-//     debug!("c");
-//     let sip_hash = SipHash::new_with_keys(keys,
-// &request_client_id.push_id.as_bytes()[1..]);     debug!("sip_hash: {:?}\t{}",
-// sip_hash, response_id.client_id);
-//
-//     if sip_hash.hash != response_id.client_id.0 {
-//         return Ok(new_responder(timing,
-// StatusCode::OK).status(StatusCode::FORBIDDEN));     }
-//
-//     let mut sse = {
-//         let instant = Instant::now();
-//         let sse = {
-//             let mut senders = SSE_POOL.write().await;
-//             (*senders).remove(&id).unwrap()
-//         };
-//         timing.add_timing("rem", instant.elapsed(), None);
-//         sse
-//     };
-//
-//     let sent = sse.send("auth", &id.to_string()).await?;
-//
-//     // If the client_id (Ulid) is valid
-//     Ok(new_responder(timing, StatusCode::OK)
-//         .status(StatusCode::OK)
-//         .body(format!("id: {}\t{}\t{:?}", id, Ulid::new(), sent)))
-// }
+/// POST /api/v1/id/response/[<id>>]
+///
+/// Process the response from the device that have the response
+pub async fn post_ulid(
+    req: HttpRequest,
+    id: web::Path<String>,
+    response_id: web::Json<ResponseId>,
+) -> actix_web::Result<impl Responder> {
+    debug!("a");
+    let mut timing = extract_timing(&req);
 
-/// GET /api/v1/id/response/<id>
+    let id = match Ulid::from_string(&id) {
+        Ok(id) => id.0,
+        Err(e) => {
+            debug!("Err Ulid: '{:?}'\t{:?}", id, e);
+            return Ok(new_responder(timing, StatusCode::NOT_FOUND).finish());
+        }
+    };
+
+    // Check if the id is known and valid
+    let (request_client_id, keys) = {
+        let instant = Instant::now();
+        let senders = SSE_POOL.read().await;
+        let request_client_id = (*senders).get(&id);
+        timing.add_timing("get", instant.elapsed(), None);
+
+        match request_client_id {
+            Some(sse) => {
+                if let Some((pr, k)) = get_sse_data(&sse.data) {
+                    (pr.clone(), k)
+                } else {
+                    return Ok(new_responder(timing, StatusCode::CONFLICT).finish());
+                }
+            }
+            None => {
+                warn!("SSE stream id does not exists");
+                return Ok(new_responder(timing, StatusCode::NOT_FOUND).finish());
+            }
+        }
+    };
+
+    debug!("b");
+    let sip_hash = SipHash::new_with_keys(keys, &request_client_id.push_id.as_bytes()[1..]);
+    debug!("sip_hash: {:?}\t{}", sip_hash, response_id.client_id);
+
+    if sip_hash.hash != response_id.client_id.0 {
+        return Ok(new_responder(timing, StatusCode::FORBIDDEN).finish());
+    }
+
+    let mut sse = {
+        let instant = Instant::now();
+        let sse = {
+            let mut senders = SSE_POOL.write().await;
+            (*senders).remove(&id).unwrap()
+        };
+        timing.add_timing("rem", instant.elapsed(), None);
+        sse
+    };
+
+    let sent = sse.send("auth", &id.to_string())?;
+
+    // If the client_id (Ulid) is valid
+    Ok(new_responder(timing, StatusCode::OK)
+        .status(StatusCode::OK)
+        .body(format!("id: {}\t{}\t{:?}", id, Ulid::new(), sent)))
+}
+
+/// GET /api/v1/id/response/[<id>]
 ///
 /// Endpoint for SSE, the browser needs to know the `id`, that is made from:
 /// - `push_token` already known by this client who asked the push
@@ -108,15 +110,17 @@ fn get_sse_data(sse_data: &SseData) -> Option<(&PushRequest, SipHashKeys)> {
 ///
 /// Listening to the SSE send the push to the terminal and the associated
 /// encrypted data.
-pub async fn get_ulid(req: HttpRequest, id: String) -> actix_web::Result<impl Responder> {
+pub async fn get_ulid(
+    req: HttpRequest,
+    id: web::Path<String>,
+) -> actix_web::Result<impl Responder> {
     debug!("aaa");
     let mut timing = extract_timing(&req);
     let id = match Ulid::from_string(&id) {
         Ok(id) => id.0,
-        Err(_) => {
-            return Ok(new_responder(timing, StatusCode::OK)
-                .status(StatusCode::NOT_FOUND)
-                .finish())
+        Err(e) => {
+            debug!("Err Ulid: '{:?}'\t{:?}", id, e);
+            return Ok(new_responder(timing, StatusCode::NOT_FOUND).finish());
         }
     };
     // Retrieve the push_id associated with this `id`
@@ -135,10 +139,9 @@ pub async fn get_ulid(req: HttpRequest, id: String) -> actix_web::Result<impl Re
         if let Some((already_listener, push_id)) = push_data {
             // If a previous request requested this `id`
             if already_listener {
+                debug!("Trying to connect to an already accepted SSE");
                 // A listener already registered, it's not allowed to listen 2 times
-                return Ok(new_responder(timing, StatusCode::OK)
-                    .status(StatusCode::FORBIDDEN)
-                    .finish());
+                return Ok(new_responder(timing, StatusCode::FORBIDDEN).finish());
             }
             // Returns if the `push_id` cannot be retrieved
             match push_id {
@@ -146,16 +149,14 @@ pub async fn get_ulid(req: HttpRequest, id: String) -> actix_web::Result<impl Re
                 Some(push_id) => push_id,
                 // The requested `sse_id` is a different type, so returns an error
                 None => {
-                    return Ok(new_responder(timing, StatusCode::OK)
-                        .status(StatusCode::CONFLICT)
-                        .finish());
+                    debug!("Trying to connect to an ID that does not contains any listener");
+                    return Ok(new_responder(timing, StatusCode::CONFLICT).finish());
                 }
             }
         } else {
             // This `id` was not registered
-            return Ok(new_responder(timing, StatusCode::OK)
-                .status(StatusCode::NOT_FOUND)
-                .finish());
+            debug!("Not configured SSE id");
+            return Ok(new_responder(timing, StatusCode::NOT_FOUND).finish());
         }
     };
 

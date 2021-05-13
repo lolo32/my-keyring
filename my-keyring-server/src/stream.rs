@@ -1,6 +1,6 @@
 use std::{
     pin::Pin,
-    task::{Context, Poll, Waker},
+    task::{Context, Poll},
 };
 
 use actix_web::web::Bytes;
@@ -12,7 +12,7 @@ pub struct SseStream(Receiver<Bytes>);
 
 impl SseStream {
     pub fn new() -> (Sender<Bytes>, Self) {
-        let (tx, rx) = channel(5);
+        let (tx, rx) = channel(2);
         (tx, Self(rx))
     }
 }
