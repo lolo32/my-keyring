@@ -52,7 +52,8 @@ pub async fn post_ulid(
             debug!("Err Ulid: '{:?}'\t{:?}", id, e);
             return Ok(new_responder(timing, StatusCode::NOT_FOUND).finish());
         }
-    };
+    }
+    .into();
 
     // Check if the id is known and valid
     let (request_client_id, keys) = {
@@ -122,7 +123,8 @@ pub async fn get_ulid(
             debug!("Err Ulid: '{:?}'\t{:?}", id, e);
             return Ok(new_responder(timing, StatusCode::NOT_FOUND).finish());
         }
-    };
+    }
+    .into();
     // Retrieve the push_id associated with this `id`
     let push_id = {
         let instant = Instant::now();
@@ -206,7 +208,7 @@ pub async fn get_ulid(
     // Generate then return the Server-Sent-Event response to the client
     Ok(new_responder(timing, StatusCode::OK)
         .insert_header(header::CacheControl(vec![header::CacheDirective::NoCache]))
-        .insert_header(header::ContentEncoding("entity"))
+        .insert_header(header::ContentEncoding::Identity)
         .insert_header((header::CONTENT_TYPE, "text/event-stream"))
         .streaming(body))
 }

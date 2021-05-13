@@ -50,7 +50,7 @@ async fn request(req: HttpRequest, push_request: web::Json<PushRequest>) -> impl
     {
         let instant = Instant::now();
         (*SSE_POOL.write().await).insert(
-            response_url_sip_hash.hash,
+            response_url_sip_hash.hash.into(),
             Sse {
                 sender: None,
                 last_heartbeat: Instant::now(),

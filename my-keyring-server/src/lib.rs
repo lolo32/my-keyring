@@ -4,11 +4,13 @@ use actix_web::{
     dev::Service, http::HeaderValue, middleware::Logger, rt::time::Instant, App, HttpMessage,
     HttpServer,
 };
+use byteorder::BigEndian;
 use futures::future::join_all;
 use log::{debug, info, trace};
 use my_keyring_shared::RUSTC_VERSION;
 use once_cell::sync::Lazy;
 use tokio::{sync::RwLock, time::Duration};
+use zerocopy::U128;
 
 use crate::timing::Timing;
 
@@ -18,7 +20,8 @@ mod sse;
 mod stream;
 mod timing;
 
-static SSE_POOL: Lazy<RwLock<HashMap<u128, sse::Sse>>> = Lazy::new(|| RwLock::new(HashMap::new()));
+static SSE_POOL: Lazy<RwLock<HashMap<U128<BigEndian>, sse::Sse>>> =
+    Lazy::new(|| RwLock::new(HashMap::new()));
 
 pub async fn main(addr: &str) -> std::io::Result<()> {
     {

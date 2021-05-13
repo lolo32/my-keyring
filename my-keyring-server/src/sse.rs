@@ -1,6 +1,8 @@
 use actix_web::{rt::time::Instant, web::Bytes};
+use byteorder::BigEndian;
 use my_keyring_shared::{request::PushRequest, security::SipHashKeys};
 use tokio::{sync::mpsc::Sender, time::Duration};
+use zerocopy::U128;
 
 #[derive(Debug)]
 #[non_exhaustive]
@@ -17,10 +19,13 @@ pub struct Sse {
 }
 
 impl Sse {
-    pub async fn heartbeat(&mut self, id: u128) -> (u128, Result<(), crate::error::Error>) {
+    pub async fn heartbeat(
+        &mut self,
+        id: U128<BigEndian>,
+    ) -> (U128<BigEndian>, Result<(), crate::error::Error>) {
         if self.last_heartbeat + Duration::from_secs(15) < Instant::now() {
             self.last_heartbeat = Instant::now();
-            (id, self.send("heart", "💓"))
+            (id, self.send("ping", "💓"))
         } else {
             (id, Ok(()))
         }
