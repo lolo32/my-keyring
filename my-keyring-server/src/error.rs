@@ -5,6 +5,7 @@ use actix_web::{http::StatusCode, ResponseError};
 #[derive(Debug)]
 pub enum Error {
     SseClosed,
+    Timeout,
 }
 
 impl fmt::Display for Error {

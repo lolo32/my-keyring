@@ -3,7 +3,7 @@ use actix_web::{
     rt::time::Instant,
     web,
     web::{Data, ReqData},
-    HttpRequest, Responder,
+    Responder,
 };
 use log::debug;
 use my_keyring_shared::{request::PushRequest, security::SipHash};
@@ -61,11 +61,10 @@ async fn request(
         let instant = Instant::now();
         (*sse_data.write().await).insert(
             response_url_sip_hash.hash.into(),
-            Sse {
-                sender: None,
-                last_heartbeat: Instant::now(),
-                data: SseData::PushRequest(push_request.into_inner(), response_url_sip_hash.keys),
-            },
+            Sse::new(
+                5 * 60,
+                SseData::PushRequest(push_request.into_inner(), response_url_sip_hash.keys),
+            ),
         );
         timing.add_timing("ssew", instant.elapsed(), None);
     }

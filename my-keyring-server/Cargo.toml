@@ -25,6 +25,9 @@ version = "0.8.3"
 [dependencies.futures]
 version = "0.3.14"
 
+[dependencies.futures-core]
+version = "0.3.15"
+
 [dependencies.hkdf]
 version = "0.11.0"
 
@@ -37,6 +40,9 @@ features = [
 
 [dependencies.my-keyring-shared]
 path = "../my-keyring-shared"
+
+[dependencies.pin-project]
+version = "1.0.7"
 
 [dependencies.pretty_env_logger]
 version = "0.4.0"

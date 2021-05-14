@@ -1,11 +1,9 @@
-use std::borrow::BorrowMut;
-
 use actix_web::{
     http::{header, StatusCode},
     rt::time::Instant,
     web,
     web::{Data, ReqData},
-    HttpRequest, Responder,
+    Responder,
 };
 use log::{debug, warn};
 use my_keyring_shared::{
@@ -15,9 +13,9 @@ use my_keyring_shared::{
 use ulid::Ulid;
 
 use crate::{
-    sse::SseData,
+    sse::{Sse, SseData},
     stream::SseStream,
-    timing::{extract_timing, new_responder, Timing},
+    timing::{new_responder, Timing},
     SseDataType,
 };
 
@@ -30,8 +28,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
 }
 
 #[inline]
-fn get_sse_data(sse_data: &SseData) -> Option<(&PushRequest, SipHashKeys)> {
-    match sse_data {
+fn get_sse_data(sse: &Sse) -> Option<(&PushRequest, SipHashKeys)> {
+    match sse.get_data() {
         SseData::PushRequest(push_request, keys) => Some((push_request, *keys)),
         _ => None,
     }
@@ -67,7 +65,7 @@ pub async fn post_ulid(
 
         match request_client_id {
             Some(sse) => {
-                if let Some((pr, k)) = get_sse_data(&sse.data) {
+                if let Some((pr, k)) = get_sse_data(&sse) {
                     (pr.clone(), k)
                 } else {
                     return Ok(new_responder(timing, StatusCode::CONFLICT).finish());
@@ -136,9 +134,9 @@ pub async fn get_ulid(
         let push_data = (*sse_data.read().await).get(&id).map(|sse| {
             (
                 // Is there already a sse listener
-                sse.sender.is_some(),
+                sse.get_sender().is_some(),
                 // Check the SseData type, it must be a `PushRequest`
-                get_sse_data(&sse.data).map(|(pr, _k)| pr.push_id.clone()),
+                get_sse_data(&sse).map(|(pr, _k)| pr.push_id.clone()),
             )
         });
         timing.add_timing("sser", instant.elapsed(), None);
@@ -174,8 +172,8 @@ pub async fn get_ulid(
 
         // Register the `sender` and update `last_heartbeat` information
         (*sse_data.write().await).entry(id).and_modify(|sse| {
-            sse.last_heartbeat = Instant::now();
-            sse.sender = Some(sender);
+            sse.refresh_heartbeat();
+            sse.set_sender(sender);
         });
         timing.add_timing("ssew", instant.elapsed(), None);
 
@@ -189,7 +187,7 @@ pub async fn get_ulid(
         (*sse_data.read().await)
             .get(&id)
             .map(|sse| {
-                get_sse_data(&sse.data)
+                get_sse_data(&sse)
                     .map(|(pr, k)| (k, pr.encrypted_data.clone().unwrap()))
                     .unwrap()
             })
@@ -198,8 +196,8 @@ pub async fn get_ulid(
     // Remove the encrypted data from the server
     {
         (*sse_data.write().await).entry(id).and_modify(|sse| {
-            if let SseData::PushRequest(push_request, _keys) = sse.data.borrow_mut() {
-                push_request.encrypted_data = None
+            if let SseData::PushRequest(push_request, _keys) = sse.get_data_mut() {
+                push_request.encrypted_data = None;
             };
         });
     }

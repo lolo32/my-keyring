@@ -1,6 +1,6 @@
 use std::fmt;
 
-use actix_web::{http::StatusCode, HttpRequest, HttpResponseBuilder};
+use actix_web::{http::StatusCode, HttpResponseBuilder};
 use tokio::time::Duration;
 
 pub fn new_responder(timing: Timing, status: StatusCode) -> HttpResponseBuilder {
