@@ -1,5 +1,4 @@
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
+fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "my_keyring_server,actix_web=debug");
     std::env::set_var("RUST_LOG_STYLE", "always");
 
@@ -9,5 +8,5 @@ async fn main() -> std::io::Result<()> {
         .try_init()
         .expect("failed to init logger");
 
-    my_keyring_server::main("127.0.0.1:3000").await
+    actix_web::rt::System::new().block_on(async { my_keyring_server::main("127.0.0.1:3000").await })
 }
