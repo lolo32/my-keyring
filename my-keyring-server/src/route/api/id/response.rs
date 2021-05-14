@@ -3,7 +3,9 @@ use std::borrow::BorrowMut;
 use actix_web::{
     http::{header, StatusCode},
     rt::time::Instant,
-    web, HttpRequest, Responder,
+    web,
+    web::{Data, ReqData},
+    HttpRequest, Responder,
 };
 use log::{debug, warn};
 use my_keyring_shared::{
@@ -15,8 +17,8 @@ use ulid::Ulid;
 use crate::{
     sse::SseData,
     stream::SseStream,
-    timing::{extract_timing, new_responder},
-    SSE_POOL,
+    timing::{extract_timing, new_responder, Timing},
+    SseDataType,
 };
 
 pub fn config(cfg: &mut web::ServiceConfig) {
@@ -39,12 +41,13 @@ fn get_sse_data(sse_data: &SseData) -> Option<(&PushRequest, SipHashKeys)> {
 ///
 /// Process the response from the device that have the response
 pub async fn post_ulid(
-    req: HttpRequest,
+    timing: ReqData<Timing>,
     id: web::Path<String>,
     response_id: web::Json<ResponseId>,
+    sse_data: Data<SseDataType>,
 ) -> actix_web::Result<impl Responder> {
     debug!("a");
-    let mut timing = extract_timing(&req);
+    let mut timing = timing.into_inner();
 
     let id = match Ulid::from_string(&id) {
         Ok(id) => id.0,
@@ -58,7 +61,7 @@ pub async fn post_ulid(
     // Check if the id is known and valid
     let (request_client_id, keys) = {
         let instant = Instant::now();
-        let senders = SSE_POOL.read().await;
+        let senders = sse_data.read().await;
         let request_client_id = (*senders).get(&id);
         timing.add_timing("get", instant.elapsed(), None);
 
@@ -88,7 +91,7 @@ pub async fn post_ulid(
     let mut sse = {
         let instant = Instant::now();
         let sse = {
-            let mut senders = SSE_POOL.write().await;
+            let mut senders = sse_data.write().await;
             (*senders).remove(&id).unwrap()
         };
         timing.add_timing("rem", instant.elapsed(), None);
@@ -112,11 +115,13 @@ pub async fn post_ulid(
 /// Listening to the SSE send the push to the terminal and the associated
 /// encrypted data.
 pub async fn get_ulid(
-    req: HttpRequest,
+    timing: ReqData<Timing>,
     id: web::Path<String>,
+    sse_data: Data<SseDataType>,
 ) -> actix_web::Result<impl Responder> {
     debug!("aaa");
-    let mut timing = extract_timing(&req);
+    let mut timing = timing.into_inner();
+
     let id = match Ulid::from_string(&id) {
         Ok(id) => id.0,
         Err(e) => {
@@ -128,7 +133,7 @@ pub async fn get_ulid(
     // Retrieve the push_id associated with this `id`
     let push_id = {
         let instant = Instant::now();
-        let push_data = (*SSE_POOL.read().await).get(&id).map(|sse| {
+        let push_data = (*sse_data.read().await).get(&id).map(|sse| {
             (
                 // Is there already a sse listener
                 sse.sender.is_some(),
@@ -168,7 +173,7 @@ pub async fn get_ulid(
         let instant = Instant::now();
 
         // Register the `sender` and update `last_heartbeat` information
-        (*SSE_POOL.write().await).entry(id).and_modify(|sse| {
+        (*sse_data.write().await).entry(id).and_modify(|sse| {
             sse.last_heartbeat = Instant::now();
             sse.sender = Some(sender);
         });
@@ -181,7 +186,7 @@ pub async fn get_ulid(
 
     // Retrieve the keys and the associated encrypted data
     let (keys, data) = {
-        (*SSE_POOL.read().await)
+        (*sse_data.read().await)
             .get(&id)
             .map(|sse| {
                 get_sse_data(&sse.data)
@@ -192,7 +197,7 @@ pub async fn get_ulid(
     };
     // Remove the encrypted data from the server
     {
-        (*SSE_POOL.write().await).entry(id).and_modify(|sse| {
+        (*sse_data.write().await).entry(id).and_modify(|sse| {
             if let SseData::PushRequest(push_request, _keys) = sse.data.borrow_mut() {
                 push_request.encrypted_data = None
             };

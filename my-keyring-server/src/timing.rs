@@ -1,12 +1,7 @@
 use std::fmt;
 
 use actix_web::{http::StatusCode, HttpRequest, HttpResponseBuilder};
-use humantime::format_rfc3339_millis;
 use tokio::time::Duration;
-
-pub fn extract_timing(req: &HttpRequest) -> Timing {
-    req.extensions().get::<Timing>().cloned().unwrap()
-}
 
 pub fn new_responder(timing: Timing, status: StatusCode) -> HttpResponseBuilder {
     let mut res = HttpResponseBuilder::new(status);

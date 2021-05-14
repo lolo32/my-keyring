@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use actix_web::{
     dev::Service, http::HeaderValue, middleware::Logger, rt::time::Instant, App, HttpMessage,
@@ -8,7 +8,6 @@ use byteorder::BigEndian;
 use futures::future::join_all;
 use log::{debug, info, trace};
 use my_keyring_shared::RUSTC_VERSION;
-use once_cell::sync::Lazy;
 use tokio::{sync::RwLock, time::Duration};
 use zerocopy::U128;
 
@@ -20,17 +19,16 @@ mod sse;
 mod stream;
 mod timing;
 
-static SSE_POOL: Lazy<RwLock<HashMap<U128<BigEndian>, sse::Sse>>> =
-    Lazy::new(|| RwLock::new(HashMap::new()));
+type SseDataType = Arc<RwLock<HashMap<U128<BigEndian>, sse::Sse>>>;
 
 pub async fn main(addr: &str) -> std::io::Result<()> {
-    {
-        let _ = SSE_POOL.read().await;
-    }
+    let sse_pool: SseDataType = Arc::new(RwLock::new(HashMap::new()));
 
     info!("Built with: {}", RUSTC_VERSION);
 
+    let sp = sse_pool.clone();
     tokio::spawn(async move {
+        let sse_pool = sp;
         let mut interval = tokio::time::interval_at(
             Instant::now() + Duration::from_secs(15),
             Duration::from_secs(5),
@@ -42,7 +40,7 @@ pub async fn main(addr: &str) -> std::io::Result<()> {
             trace!(">>> SSE heartbeat");
             let mut to_remove = Vec::new();
             let connections = {
-                let mut sse_pool = SSE_POOL.write().await;
+                let mut sse_pool = sse_pool.write().await;
                 let mut connections = Vec::new();
                 for (id, sse) in (*sse_pool).iter_mut() {
                     debug!(">>> SSE: {}", id);
@@ -60,7 +58,7 @@ pub async fn main(addr: &str) -> std::io::Result<()> {
                 }
             }
             {
-                let mut sse_pool = SSE_POOL.write().await;
+                let mut sse_pool = sse_pool.write().await;
                 for id in to_remove {
                     (*sse_pool).remove(&id);
                 }
@@ -68,8 +66,9 @@ pub async fn main(addr: &str) -> std::io::Result<()> {
         }
     });
 
-    HttpServer::new(|| {
+    HttpServer::new(move || {
         App::new()
+            .data(sse_pool.clone())
             .wrap_fn(|req, srv| {
                 let instant = Instant::now();
                 req.extensions_mut().insert(Timing::new());

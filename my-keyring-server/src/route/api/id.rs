@@ -1,12 +1,18 @@
-use actix_web::{http::StatusCode, rt::time::Instant, web, HttpRequest, Responder};
+use actix_web::{
+    http::StatusCode,
+    rt::time::Instant,
+    web,
+    web::{Data, ReqData},
+    HttpRequest, Responder,
+};
 use log::debug;
 use my_keyring_shared::{request::PushRequest, security::SipHash};
 use ulid::Ulid;
 
 use crate::{
     sse::{Sse, SseData},
-    timing::{extract_timing, new_responder},
-    SSE_POOL,
+    timing::{new_responder, Timing},
+    SseDataType,
 };
 
 pub mod response;
@@ -19,8 +25,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
 
 /// POST /api/v1/id/save
 /// TODO
-async fn save(req: HttpRequest, response_id: String) -> impl Responder {
-    let mut timing = extract_timing(&req);
+async fn save(timing: ReqData<Timing>, response_id: String) -> impl Responder {
+    let mut timing = timing.into_inner();
 
     println!("{:?}", response_id);
 
@@ -30,8 +36,12 @@ async fn save(req: HttpRequest, response_id: String) -> impl Responder {
 /// POST /api/v1/id/request
 ///
 /// Used to request for a push authentication request
-async fn request(req: HttpRequest, push_request: web::Json<PushRequest>) -> impl Responder {
-    let mut timing = extract_timing(&req);
+async fn request(
+    timing: ReqData<Timing>,
+    push_request: web::Json<PushRequest>,
+    sse_data: Data<SseDataType>,
+) -> impl Responder {
+    let mut timing = timing.into_inner();
 
     let response_url_sip_hash = SipHash::new(push_request.push_id.as_bytes());
     debug!(
@@ -49,7 +59,7 @@ async fn request(req: HttpRequest, push_request: web::Json<PushRequest>) -> impl
     // Store the response_url_sip_hash and the information for later use
     {
         let instant = Instant::now();
-        (*SSE_POOL.write().await).insert(
+        (*sse_data.write().await).insert(
             response_url_sip_hash.hash.into(),
             Sse {
                 sender: None,
