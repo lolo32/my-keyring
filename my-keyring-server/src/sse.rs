@@ -72,16 +72,21 @@ impl Sse {
 
     pub fn send(&mut self, id: &str, msg: &str) -> Result<(), crate::error::Error> {
         if let Some(sender) = self.sender.as_mut() {
-            let msg = if id.is_empty() {
-                format!(": {}\n\n", msg)
-            } else {
-                format!("event: {}\ndata: {}\n\n", id, msg)
-            };
+            let mut msg_out = Vec::with_capacity(6);
+            if !id.is_empty() {
+                msg_out.push("event: ");
+                msg_out.push(id);
+                msg_out.push("\n");
+            }
+            msg_out.push("data: ");
+            msg_out.push(msg);
+            msg_out.push("\n\n");
+            let msg = msg_out.concat();
             sender
                 .try_send(Bytes::from(msg))
                 .map_err(|_| crate::error::Error::SseClosed)
         } else {
-            Err(crate::error::Error::SseClosed)
+            Err(crate::error::Error::NotConnected)
         }
     }
 }
